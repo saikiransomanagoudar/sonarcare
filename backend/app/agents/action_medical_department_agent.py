@@ -18,7 +18,7 @@ class ActionMedicalDepartmentAgent(BaseActionAgent):
         """Initialize the medical department agent."""
         super().__init__()
         # Use default model from config
-        self.model = settings.PERPLEXITY_MODEL
+        self.model = settings.PERPLEXITY_SONAR
     
     async def _extract_condition(self, query: str) -> str:
         """Extract the primary medical condition or symptom from the query."""

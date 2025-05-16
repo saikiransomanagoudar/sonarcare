@@ -18,7 +18,7 @@ class ActionGreetingAgent(BaseActionAgent):
         """Initialize the greeting agent."""
         super().__init__()
         # Use default model from config
-        self.model = settings.PERPLEXITY_MODEL
+        self.model = settings.PERPLEXITY_SONAR
         
     async def process(self, query: str, message_history: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         """

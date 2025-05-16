@@ -24,7 +24,9 @@ class SonarAgent:
         """Initialize the Sonar agent with API keys and configuration."""
         from app.core.config import settings
         self.api_key = settings.PERPLEXITY_API_KEY
-        self.model = settings.PERPLEXITY_MODEL
+        self.sonar = settings.PERPLEXITY_SONAR
+        self.sonar_reasoning_pro = settings.PERPLEXITY_SONAR_REASONING_PRO
+        self.sonar_deep_research = settings.PERPLEXITY_SONAR_DEEP_RESEARCH
         
         # Check if we have a valid API key
         if not self.api_key:
@@ -85,7 +87,9 @@ class SonarAgent:
             
             # Create metadata for compatibility
             metadata = {
-                "model": self.model,
+                "sonar": self.sonar,
+                "sonar_reasoning_pro": self.sonar_reasoning_pro,
+                "sonar_deep_research": self.sonar_deep_research,
                 "tokens": {
                     "prompt": len(query.split()),
                     "completion": len(response_text.split()),
@@ -124,44 +128,44 @@ class SonarAgent:
         
         return formatted_messages
     
-    async def _generate_mock_response(
-        self, 
-        query: str, 
-        message_history: List[Dict[str, Any]]
-    ) -> Tuple[str, Dict[str, Any]]:
-        """
-        Generate a mock response for development without API keys.
+    # async def _generate_mock_response(
+    #     self, 
+    #     query: str, 
+    #     message_history: List[Dict[str, Any]]
+    # ) -> Tuple[str, Dict[str, Any]]:
+    #     """
+    #     Generate a mock response for development without API keys.
         
-        Args:
-            query: The current user query
-            message_history: List of previous messages in the conversation
+    #     Args:
+    #         query: The current user query
+    #         message_history: List of previous messages in the conversation
             
-        Returns:
-            Tuple of (response_text, metadata)
-        """
-        # Add a slight delay to simulate API call
-        await asyncio.sleep(1)
+    #     Returns:
+    #         Tuple of (response_text, metadata)
+    #     """
+    #     # Add a slight delay to simulate API call
+    #     await asyncio.sleep(1)
         
-        # Simple keyword-based mock responses
-        response_text = "I'm SonarCare, your medical assistant. For real medical advice, please consult a healthcare professional."
+    #     # Simple keyword-based mock responses
+    #     response_text = "I'm SonarCare, your medical assistant. For real medical advice, please consult a healthcare professional."
         
-        if "headache" in query.lower():
-            response_text = "Headaches can have many causes including stress, dehydration, lack of sleep, or underlying conditions. For persistent or severe headaches, please consult a healthcare professional. In the meantime, rest, hydration, and over-the-counter pain relievers may help, but this is not a substitute for professional medical advice."
+    #     if "headache" in query.lower():
+    #         response_text = "Headaches can have many causes including stress, dehydration, lack of sleep, or underlying conditions. For persistent or severe headaches, please consult a healthcare professional. In the meantime, rest, hydration, and over-the-counter pain relievers may help, but this is not a substitute for professional medical advice."
         
-        elif "fever" in query.lower():
-            response_text = "Fever is often a sign that your body is fighting an infection. For adults, a temperature above 100.4°F (38°C) is considered a fever. Rest, fluids, and fever-reducing medications may help. If the fever is high, persistent, or accompanied by other concerning symptoms, please seek medical attention immediately."
+    #     elif "fever" in query.lower():
+    #         response_text = "Fever is often a sign that your body is fighting an infection. For adults, a temperature above 100.4°F (38°C) is considered a fever. Rest, fluids, and fever-reducing medications may help. If the fever is high, persistent, or accompanied by other concerning symptoms, please seek medical attention immediately."
         
-        elif "diabetes" in query.lower():
-            response_text = "Diabetes is a chronic condition that affects how your body processes blood sugar. There are several types, with Type 1 and Type 2 being the most common. Management typically involves monitoring blood sugar, medication, diet, and exercise. Regular medical check-ups are essential. I recommend consulting with a healthcare provider for personalized advice."
+    #     elif "diabetes" in query.lower():
+    #         response_text = "Diabetes is a chronic condition that affects how your body processes blood sugar. There are several types, with Type 1 and Type 2 being the most common. Management typically involves monitoring blood sugar, medication, diet, and exercise. Regular medical check-ups are essential. I recommend consulting with a healthcare provider for personalized advice."
         
-        # Create mock metadata
-        metadata = {
-            "model": "mock-model",
-            "tokens": {
-                "prompt": 150,
-                "completion": len(response_text.split()),
-                "total": 150 + len(response_text.split())
-            }
-        }
+    #     # Create mock metadata
+    #     metadata = {
+    #         "model": "mock-model",
+    #         "tokens": {
+    #             "prompt": 150,
+    #             "completion": len(response_text.split()),
+    #             "total": 150 + len(response_text.split())
+    #         }
+    #     }
         
-        return response_text, metadata 
+    #     return response_text, metadata 

@@ -18,7 +18,7 @@ class ActionDeepMedicalResearchAgent(BaseActionAgent):
         """Initialize the deep medical research agent."""
         super().__init__()
         # Use default model from config
-        self.model = settings.PERPLEXITY_MODEL
+        self.model = settings.PERPLEXITY_SONAR_DEEP_RESEARCH
     
     async def _extract_research_topic(self, query: str) -> str:
         """Extract the primary research topic from the query."""

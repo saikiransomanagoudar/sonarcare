@@ -21,8 +21,10 @@ class Settings(BaseModel):
     
     # Perplexity API settings
     PERPLEXITY_API_KEY: str = os.getenv("PERPLEXITY_API_KEY", "")
-    PERPLEXITY_MODEL: str = os.getenv("PERPLEXITY_MODEL", "sonar-medium-online")  # Using Sonar Pro as the default model
-    
+    PERPLEXITY_SONAR: str = os.getenv("PERPLEXITY_SONAR", "sonar")
+    PERPLEXITY_SONAR_REASONING_PRO: str = os.getenv("PERPLEXITY_SONAR_REASONING_PRO", "sonar-reasoning-pro")
+    PERPLEXITY_SONAR_DEEP_RESEARCH: str = os.getenv("PERPLEXITY_SONAR_DEEP_RESEARCH", "sonar-deep-research")
+
     # Server settings
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))

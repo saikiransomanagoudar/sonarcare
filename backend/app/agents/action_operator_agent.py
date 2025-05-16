@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 
 from app.agents.base_agent import BaseActionAgent
 from app.core.config import settings
@@ -28,8 +28,9 @@ class ActionOperatorAgent(BaseActionAgent):
     def __init__(self):
         """Initialize the operator agent."""
         super().__init__()
-        # Use default model from config
-        self.model = settings.PERPLEXITY_MODEL
+        self.sonar = settings.PERPLEXITY_SONAR
+        self.sonar_reasoning_pro = settings.PERPLEXITY_SONAR_REASONING_PRO
+        self.sonar_deep_research = settings.PERPLEXITY_SONAR_DEEP_RESEARCH
         
     async def process(self, query: str, message_history: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         """

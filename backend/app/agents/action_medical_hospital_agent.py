@@ -19,7 +19,7 @@ class ActionMedicalHospitalAgent(BaseActionAgent):
         """Initialize the hospital search agent."""
         super().__init__()
         # Use default model from config
-        self.model = settings.PERPLEXITY_MODEL
+        self.model = settings.PERPLEXITY_SONAR
     
     async def _extract_location_and_specialty(self, query: str) -> Dict[str, str]:
         """Extract location and medical specialty from the query."""

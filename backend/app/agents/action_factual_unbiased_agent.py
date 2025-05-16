@@ -18,7 +18,7 @@ class ActionFactualUnbiasedAgent(BaseActionAgent):
         """Initialize the unbiased factual agent."""
         super().__init__()
         # Use default model from config
-        self.model = settings.PERPLEXITY_MODEL
+        self.model = settings.PERPLEXITY_SONAR_REASONING_PRO
     
     async def _extract_controversial_topic(self, query: str) -> str:
         """Extract the potentially controversial medical topic from the query."""
