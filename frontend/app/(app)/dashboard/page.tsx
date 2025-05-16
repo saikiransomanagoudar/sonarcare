@@ -50,7 +50,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 relative z-10">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Your Conversations</h1>
         <Link
@@ -70,7 +70,7 @@ export default function DashboardPage() {
           {error}
         </div>
       ) : sessions.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white bg-opacity-90 backdrop-blur-sm rounded-lg shadow p-8 text-center">
           <svg
             className="w-16 h-16 text-gray-400 mx-auto mb-4"
             fill="none"
@@ -100,7 +100,7 @@ export default function DashboardPage() {
           {sessions.map((session) => (
             <div
               key={session.id}
-              className="bg-white rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow"
+              className="bg-white bg-opacity-90 backdrop-blur-sm rounded-lg shadow overflow-hidden hover:shadow-md transition-shadow"
             >
               <div className="p-4">
                 <h3 className="font-semibold text-lg mb-1 truncate">

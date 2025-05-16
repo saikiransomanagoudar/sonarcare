@@ -20,20 +20,6 @@ export default function Home() {
                 Information provided by SonarCare is for general educational purposes only and is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a healthcare provider.
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link
-                href="/signup"
-                className="px-6 py-3 rounded-lg bg-white text-blue-700 font-semibold hover:bg-blue-50 transition-colors"
-              >
-                Create an Account
-              </Link>
-              <Link
-                href="/login"
-                className="px-6 py-3 rounded-lg bg-transparent border-2 border-white text-white font-semibold hover:bg-white/10 transition-colors"
-              >
-                Sign In
-              </Link>
-            </div>
           </div>
         </section>
         

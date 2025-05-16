@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Tuple
 
 from app.agents.base_agent import BaseActionAgent
 from app.agents.sonar_agent import SonarAgent
+from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -12,20 +13,14 @@ logger = logging.getLogger(__name__)
 class ActionMedicineAgent(BaseActionAgent):
     """
     Agent for handling medical advice related to symptoms and treatments.
-    Uses a two-step approach:
-    1. Sonar Pro (Search Grounding) for retrieving factual information
-    2. Sonar Reasoning Pro for generating safe, responsible advice
+    Uses a two-step approach with a single model for both search and reasoning.
     """
     
     def __init__(self):
         """Initialize the medicine agent."""
         super().__init__()
-        # Initialize two specialized agents
-        self.search_agent = SonarAgent()
-        self.search_agent.model = "sonar-medium-online"  # Use Sonar Pro for search
-        
-        self.reasoning_agent = SonarAgent()
-        self.reasoning_agent.model = "sonar-medium-chat"  # Use Sonar Reasoning Pro for response synthesis
+        # Initialize agent with the default model for both search and reasoning
+        self.model = settings.PERPLEXITY_MODEL
     
     async def _extract_condition(self, query: str) -> str:
         """Extract the primary medical condition or symptom from the query."""
@@ -41,7 +36,7 @@ Response format: Only output the extracted condition or symptom - nothing else."
         return condition_response.strip()
     
     async def _get_medical_facts(self, condition: str) -> str:
-        """Get factual information about the condition using Sonar Search."""
+        """Get factual information about the condition."""
         search_prompt = f"""What are common symptoms, causes, and general self-care advice for {condition}? 
 Include:
 - Common symptoms and signs
@@ -52,7 +47,7 @@ Include:
 
 Focus on factual, evidence-based information from reputable medical sources."""
         
-        facts_response, _ = await self._generate_response(search_prompt, model=self.search_agent.model)
+        facts_response, _ = await self._generate_response(search_prompt, model=self.model)
         return facts_response
     
     async def _generate_safe_advice(self, query: str, medical_facts: str) -> Tuple[str, Dict[str, Any]]:
@@ -72,7 +67,7 @@ Based on this information, provide helpful general information about the mention
 
 Response format: Provide a helpful, conversational response that a medical chatbot would give."""
         
-        return await self._generate_response(advice_prompt, model=self.reasoning_agent.model)
+        return await self._generate_response(advice_prompt, model=self.model)
     
     async def process(self, query: str, message_history: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         """
@@ -99,8 +94,7 @@ Response format: Provide a helpful, conversational response that a medical chatb
             # Add processing info to metadata
             metadata["condition"] = condition
             metadata["two_step_process"] = True
-            metadata["search_model"] = self.search_agent.model
-            metadata["reasoning_model"] = self.reasoning_agent.model
+            metadata["model_used"] = self.model
             
             return response, metadata
             

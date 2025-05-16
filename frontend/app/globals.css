@@ -35,3 +35,44 @@ body {
   color: #6b7280 !important; /* Force medium gray for placeholder text */
   opacity: 1;
 }
+
+/* Spline integration styles */
+.spline-active {
+  overflow: hidden;
+}
+
+.spline-active canvas {
+  pointer-events: auto !important;
+  z-index: 1 !important;
+}
+
+/* Ensure Spline interactions work properly */
+div[data-spline-scene] {
+  pointer-events: auto !important;
+}
+
+/* Make sure chat elements don't interfere with Spline */
+.z-10 {
+  pointer-events: auto;
+}
+
+/* Fix for possible pointer event issues */
+canvas {
+  touch-action: auto !important;
+  pointer-events: auto !important;
+  position: absolute !important;
+}
+
+/* Add specific styles for the Spline canvas element */
+canvas[data-engine="three.js"] {
+  pointer-events: auto !important;
+  z-index: 1 !important;
+}
+
+/* Key fix: Make sure elements above the Spline scene don't block mouse events to it */
+.z-10 {
+  pointer-events: none;
+}
+.z-10 > * {
+  pointer-events: auto;
+}

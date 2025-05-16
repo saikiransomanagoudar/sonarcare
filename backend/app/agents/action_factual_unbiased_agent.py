@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 
 from app.agents.base_agent import BaseActionAgent
+from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -10,14 +11,14 @@ logger = logging.getLogger(__name__)
 class ActionFactualUnbiasedAgent(BaseActionAgent):
     """
     Agent for providing unbiased, factual information on potentially controversial medical topics.
-    Uses a specialized model for balanced, evidence-based responses.
+    Uses a balanced model for evidence-based responses.
     """
     
     def __init__(self):
         """Initialize the unbiased factual agent."""
         super().__init__()
-        # Use a balanced model with strong factual capabilities
-        self.model = "sonar-large-online"
+        # Use default model from config
+        self.model = settings.PERPLEXITY_MODEL
     
     async def _extract_controversial_topic(self, query: str) -> str:
         """Extract the potentially controversial medical topic from the query."""

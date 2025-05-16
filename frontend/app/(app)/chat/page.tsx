@@ -1,16 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
 import { createChatSession, sendMessage } from '../../../lib/api';
 import MessageInput from '../../../components/chat/MessageInput';
+import dynamic from 'next/dynamic';
+
+// Import SplineScene component with dynamic import
+const SplineScene = dynamic(() => import('../../../components/SplineScene'), {
+  ssr: false,
+  loading: () => null,
+});
 
 // This page shows an empty chat interface and only creates a session when the first message is sent
 export default function NewChatPage() {
   const { currentUser, loading } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Add class to body to ensure full interaction with Spline
+  useEffect(() => {
+    // Enable pointer events on the body
+    document.body.classList.add('spline-active');
+    
+    return () => {
+      document.body.classList.remove('spline-active');
+    };
+  }, []);
 
   const handleSendMessage = async (text: string) => {
     if (!currentUser || !text.trim() || isSubmitting) return;
@@ -38,17 +55,21 @@ export default function NewChatPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="w-16 h-16 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading...</p>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 relative">
+        <SplineScene />
+        <div className="z-10 bg-white bg-opacity-50 backdrop-blur-sm p-8 rounded-lg shadow-lg">
+          <div className="w-16 h-16 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center">
-        <div className="text-center max-w-md p-6 bg-white rounded-lg shadow-sm">
+    <div className="flex flex-col h-[calc(100vh-64px)] relative">
+      <SplineScene />
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center relative z-10">
+        <div className="text-center max-w-[50%] p-6 bg-white bg-opacity-90 backdrop-blur-sm rounded-lg shadow-sm">
           <h2 className="text-2xl font-bold text-gray-800 mb-2">SonarCare</h2>
           <p className="text-gray-600 mb-6">
             Ask any medical question to get reliable, research-backed information from our AI assistant.
@@ -58,7 +79,7 @@ export default function NewChatPage() {
           </div>
         </div>
       </div>
-      <div className="px-4 pb-4">
+      <div className="px-4 pb-4 relative z-10 bg-white bg-opacity-90 max-w-[50%] md:max-w-[45%] mx-auto w-full">
         <MessageInput onSendMessage={handleSendMessage} isLoading={isSubmitting} />
       </div>
     </div>

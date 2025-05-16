@@ -3,6 +3,7 @@ import re
 from typing import List, Dict, Any, Tuple, Optional
 
 from app.agents.base_agent import BaseActionAgent
+from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,14 +12,14 @@ logger = logging.getLogger(__name__)
 class ActionMedicalHospitalAgent(BaseActionAgent):
     """
     Agent for finding hospitals and medical facilities.
-    Uses Sonar Pro to get up-to-date information on hospitals, clinics, and specialists.
+    Uses Sonar to get information on hospitals, clinics, and specialists.
     """
     
     def __init__(self):
         """Initialize the hospital search agent."""
         super().__init__()
-        # Use Sonar Pro for search capabilities
-        self.model = "sonar-medium-online"
+        # Use default model from config
+        self.model = settings.PERPLEXITY_MODEL
     
     async def _extract_location_and_specialty(self, query: str) -> Dict[str, str]:
         """Extract location and medical specialty from the query."""

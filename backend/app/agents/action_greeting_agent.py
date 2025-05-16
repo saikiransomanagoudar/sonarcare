@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 
 from app.agents.base_agent import BaseActionAgent
+from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,8 +17,8 @@ class ActionGreetingAgent(BaseActionAgent):
     def __init__(self):
         """Initialize the greeting agent."""
         super().__init__()
-        # Use a lightweight model for simple greetings
-        self.model = "sonar-small-online"
+        # Use default model from config
+        self.model = settings.PERPLEXITY_MODEL
         
     async def process(self, query: str, message_history: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         """

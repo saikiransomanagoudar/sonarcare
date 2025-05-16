@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import ChatBubble from './ChatBubble';
-import { ChatMessage } from '@/types';
+import { ChatMessage } from '../../types';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -23,7 +23,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }
         <p className="text-gray-600 mb-6 max-w-md">
           Your AI medical assistant powered by Perplexity Sonar. Ask me anything about health and medical topics.
         </p>
-        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 max-w-md">
+        <div className="bg-yellow-50 bg-opacity-90 backdrop-blur-sm border-l-4 border-yellow-400 p-4 mb-4 max-w-md">
           <p className="text-yellow-700 text-sm">
             <strong>Medical Disclaimer:</strong> Information provided is for general purposes only and is not a substitute for professional medical advice, diagnosis, or treatment.
             Always seek the advice of your physician or other qualified health provider.
@@ -35,14 +35,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }
   }
 
   return (
-    <div className="flex-1 p-4 overflow-y-auto">
-      {/* Persistent medical disclaimer at the top */}
-      <div className="sticky top-0 bg-yellow-50 border-l-4 border-yellow-400 p-2 mb-4 text-sm z-10">
-        <p className="text-yellow-700">
-          <strong>Medical Disclaimer:</strong> Information provided is not a substitute for professional medical advice.
-        </p>
-      </div>
-      
+    <div className="flex-1 p-4 overflow-y-auto">      
       {/* Messages */}
       {messages.map((message) => (
         <ChatBubble key={message.id} message={message} />
@@ -50,18 +43,23 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }
       
       {/* Loading indicator */}
       {isLoading && (
-        <div className="flex items-center space-x-2 p-2 bg-gray-100 rounded-lg max-w-[70%] mb-4">
+        <div className="flex items-center space-x-2 p-2 bg-gray-100 bg-opacity-90 backdrop-blur-sm rounded-lg max-w-[70%] mb-4">
           <div className="animate-pulse flex space-x-1">
             <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
             <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
             <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
           </div>
-          <span className="text-sm text-gray-500">AI assistant is thinking...</span>
+          <span className="text-sm text-gray-500">Preparing health advice...</span>
         </div>
       )}
       
       {/* Auto-scroll reference element */}
       <div ref={messagesEndRef} />
+      <div className="sticky top-0 bg-yellow-50 bg-opacity-90 backdrop-blur-sm border-l-4 border-yellow-400 p-2 mb-4 text-sm z-10">
+        <p className="text-yellow-700">
+          <strong>Medical Disclaimer:</strong> Information provided is not a substitute for professional medical advice.
+        </p>
+      </div>
     </div>
   );
 };

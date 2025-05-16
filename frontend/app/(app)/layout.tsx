@@ -8,6 +8,13 @@ import Navbar from '../../components/layout/Navbar';
 import { getChatSessions, createChatSession, deleteChatSession } from '../../lib/api';
 import { ChatSession } from '../../types';
 import { toast } from 'react-toastify';
+import dynamic from 'next/dynamic';
+
+// Import SplineScene component with dynamic import to avoid SSR issues
+const SplineScene = dynamic(() => import('../../components/SplineScene'), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default function AppLayout({
   children,
@@ -116,8 +123,12 @@ export default function AppLayout({
   // Show loading state while checking auth
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin"></div>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 relative">
+        {/* Spline Background */}
+        <SplineScene />
+        <div className="z-10 bg-white bg-opacity-50 backdrop-blur-sm p-8 rounded-lg shadow-lg">
+          <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin"></div>
+        </div>
       </div>
     );
   }
@@ -128,12 +139,15 @@ export default function AppLayout({
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen relative">
+      {/* Spline Background */}
+      <SplineScene />
+      
       <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
       
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative z-10">
         {/* Sidebar for chat history */}
-        <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-gray-100 border-r border-gray-200 overflow-y-auto`}>
+        <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-gray-100 bg-opacity-90 backdrop-blur-sm border-r border-gray-200 overflow-y-auto`}>
           <div className="p-4">
             <button
               onClick={handleNewChat}
@@ -189,7 +203,7 @@ export default function AppLayout({
         </div>
         
         {/* Main content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden bg-white bg-opacity-90 backdrop-blur-sm">
           {children}
         </div>
       </div>

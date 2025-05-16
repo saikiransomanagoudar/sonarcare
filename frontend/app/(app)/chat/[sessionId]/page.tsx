@@ -6,6 +6,13 @@ import { useAuth } from '../../../../hooks/useAuth';
 import ChatLayout from '../../../../components/chat/ChatLayout';
 import { getChatMessages } from '../../../../lib/api';
 import { ChatMessage } from '../../../../types';
+import dynamic from 'next/dynamic';
+
+// Import SplineScene component with dynamic import
+const SplineScene = dynamic(() => import('../../../../components/SplineScene'), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default function ChatSessionPage() {
   const { currentUser } = useAuth();
@@ -34,28 +41,47 @@ export default function ChatSessionPage() {
     loadMessages();
   }, [currentUser, sessionId]);
 
+  // Add class to body to ensure full interaction with Spline
+  useEffect(() => {
+    // Enable pointer events on the body
+    document.body.classList.add('spline-active');
+    
+    return () => {
+      document.body.classList.remove('spline-active');
+    };
+  }, []);
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin"></div>
+      <div className="flex min-h-screen items-center justify-center relative">
+        <SplineScene />
+        <div className="z-10 bg-white bg-opacity-50 backdrop-blur-sm p-8 rounded-lg shadow-lg">
+          <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin"></div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded mb-4 inline-block">
-          <p className="font-bold">Error</p>
-          <p>{error}</p>
+      <div className="container mx-auto px-4 py-12 text-center relative">
+        <SplineScene />
+        <div className="relative z-10">
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded mb-4 inline-block">
+            <p className="font-bold">Error</p>
+            <p>{error}</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-[calc(100vh-64px)]">
-      <ChatLayout initialMessages={messages} sessionId={sessionId} />
+    <div className="h-[calc(100vh-64px)] relative">
+      <SplineScene />
+      <div className="relative z-10 h-full flex justify-center items-start pt-4">
+        <ChatLayout initialMessages={messages} sessionId={sessionId} />
+      </div>
     </div>
   );
 } 

@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 
 from app.agents.base_agent import BaseActionAgent
+from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -10,14 +11,14 @@ logger = logging.getLogger(__name__)
 class ActionDeepMedicalResearchAgent(BaseActionAgent):
     """
     Agent for providing comprehensive, expert-level research information on medical topics.
-    Uses Sonar Deep Research for generating in-depth responses.
+    Uses Sonar for generating in-depth responses.
     """
     
     def __init__(self):
         """Initialize the deep medical research agent."""
         super().__init__()
-        # Use Sonar for deep research
-        self.model = "sonar-large-online"  # Using the most powerful model available
+        # Use default model from config
+        self.model = settings.PERPLEXITY_MODEL
     
     async def _extract_research_topic(self, query: str) -> str:
         """Extract the primary research topic from the query."""

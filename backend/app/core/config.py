@@ -21,7 +21,7 @@ class Settings(BaseModel):
     
     # Perplexity API settings
     PERPLEXITY_API_KEY: str = os.getenv("PERPLEXITY_API_KEY", "")
-    PERPLEXITY_MODEL: str = os.getenv("PERPLEXITY_MODEL", "sonar-medium-online")
+    PERPLEXITY_MODEL: str = os.getenv("PERPLEXITY_MODEL", "sonar-medium-online")  # Using Sonar Pro as the default model
     
     # Server settings
     HOST: str = os.getenv("HOST", "0.0.0.0")

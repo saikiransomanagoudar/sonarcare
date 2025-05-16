@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Any, Tuple, Optional
 
 from app.agents.base_agent import BaseActionAgent
+from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,8 +28,8 @@ class ActionOperatorAgent(BaseActionAgent):
     def __init__(self):
         """Initialize the operator agent."""
         super().__init__()
-        # Use a reasonable model for classification
-        self.model = "sonar-medium-online"
+        # Use default model from config
+        self.model = settings.PERPLEXITY_MODEL
         
     async def process(self, query: str, message_history: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         """

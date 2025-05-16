@@ -202,8 +202,8 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      <div className="bg-white border-b border-gray-200 p-2 flex justify-between items-center">
+    <div className="flex flex-col h-full max-w-[50%] md:max-w-[45%] mx-auto">
+      <div className="bg-white bg-opacity-90 backdrop-blur-sm border-b border-gray-200 p-2 flex justify-between items-center">
         <div className="text-sm text-gray-500">
           {messages.length > 0 ? `${messages.length} messages` : 'New conversation'}
         </div>

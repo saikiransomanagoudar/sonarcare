@@ -17,7 +17,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`max-w-[80%] lg:max-w-[70%] ${isUser ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800'} rounded-lg px-4 py-2`}>
+      <div className={`max-w-[60%] md:max-w-[50%] ${isUser ? 'bg-blue-500 text-white' : 'bg-white bg-opacity-90 backdrop-blur-sm text-gray-800'} rounded-lg px-4 py-2 shadow-sm`}>
         {isUser ? (
           <div className="text-sm">{message.text}</div>
         ) : (

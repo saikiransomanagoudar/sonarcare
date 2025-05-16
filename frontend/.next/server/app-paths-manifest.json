@@ -1,6 +1,5 @@
 {
   "/page": "app/page.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(app)/chat/page": "app/(app)/chat/page.js",
-  "/(app)/chat/[sessionId]/page": "app/(app)/chat/[sessionId]/page.js"
+  "/(app)/chat/[sessionId]/page": "app/(app)/chat/[sessionId]/page.js",
+  "/(app)/chat/page": "app/(app)/chat/page.js"
 }

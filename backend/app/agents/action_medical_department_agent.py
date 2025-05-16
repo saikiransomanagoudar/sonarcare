@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 
 from app.agents.base_agent import BaseActionAgent
+from app.core.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,8 +17,8 @@ class ActionMedicalDepartmentAgent(BaseActionAgent):
     def __init__(self):
         """Initialize the medical department agent."""
         super().__init__()
-        # Use Sonar for search capabilities
-        self.model = "sonar-medium-online"
+        # Use default model from config
+        self.model = settings.PERPLEXITY_MODEL
     
     async def _extract_condition(self, query: str) -> str:
         """Extract the primary medical condition or symptom from the query."""
