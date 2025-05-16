@@ -111,7 +111,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                 </div>
                 <button
                   onClick={handleSignOut}
-                  className="ml-2 px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  className="ml-2 px-3 py-1.5 cursor-pointer border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                 >
                   Sign Out
                 </button>

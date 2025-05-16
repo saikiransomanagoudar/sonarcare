@@ -83,4 +83,12 @@ export const deleteChatSession = async (sessionId: string): Promise<void> => {
     console.error('Error deleting session:', error);
     throw error;
   }
+};
+
+// Update a chat session title
+export const updateSessionTitle = async (sessionId: string, title: string): Promise<ChatSession> => {
+  return fetchAPI<ChatSession>(`/api/v1/chat/session/${sessionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  });
 }; 

@@ -38,28 +38,45 @@ export default function AppLayout({
     }
   }, [currentUser, loading, router, pathname]);
 
+  // Function to load sessions
+  const loadSessions = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setLoadingSessions(true);
+      const data = await getChatSessions(currentUser.uid);
+      // Sort sessions by last activity
+      const sortedSessions = data.sort((a, b) => {
+        return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
+      });
+      setSessions(sortedSessions);
+    } catch (err) {
+      console.error('Error loading chat sessions:', err);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
   // Load chat sessions for sidebar
   useEffect(() => {
-    if (!currentUser) return;
+    loadSessions();
+  }, [currentUser, pathname]);
 
-    const loadSessions = async () => {
-      try {
-        setLoadingSessions(true);
-        const data = await getChatSessions(currentUser.uid);
-        // Sort sessions by last activity
-        const sortedSessions = data.sort((a, b) => {
-          return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
-        });
-        setSessions(sortedSessions);
-      } catch (err) {
-        console.error('Error loading chat sessions:', err);
-      } finally {
-        setLoadingSessions(false);
+  // Listen for session title updates
+  useEffect(() => {
+    const handleSessionTitleUpdate = () => {
+      // Refresh the sessions list when a title is updated
+      if (currentUser) {
+        loadSessions();
       }
     };
 
-    loadSessions();
-  }, [currentUser, pathname]);
+    window.addEventListener('sessionTitleUpdated', handleSessionTitleUpdate);
+    
+    return () => {
+      window.removeEventListener('sessionTitleUpdated', handleSessionTitleUpdate);
+    };
+  }, [currentUser]);
 
   // Handle creating a new chat
   const handleNewChat = () => {
@@ -147,7 +164,7 @@ export default function AppLayout({
       
       <div className="flex flex-1 overflow-hidden relative z-10">
         {/* Sidebar for chat history */}
-        <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-gray-100 bg-opacity-90 backdrop-blur-sm border-r border-gray-200 overflow-y-auto`}>
+        <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block w-full md:w-64 bg-white border-r border-gray-200 overflow-y-auto shadow-sm`}>
           <div className="p-4">
             <button
               onClick={handleNewChat}
@@ -160,7 +177,7 @@ export default function AppLayout({
             </button>
             
             <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Recent Conversations</h3>
+              <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-3 px-2">Recent Conversations</h3>
               {loadingSessions ? (
                 <div className="flex justify-center py-4">
                   <div className="w-6 h-6 border-t-2 border-blue-500 rounded-full animate-spin"></div>
@@ -168,20 +185,25 @@ export default function AppLayout({
               ) : sessions.length === 0 ? (
                 <p className="text-center text-sm text-gray-500 py-4">No conversations yet</p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-1">
                   {sessions.map((session) => (
                     <li key={session.id}>
                       <div className="relative group">
                         <Link 
                           href={`/chat/${session.id}`}
-                          className={`block px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors ${
-                            pathname === `/chat/${session.id}` ? 'bg-gray-200' : ''
+                          className={`block px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors ${
+                            pathname === `/chat/${session.id}` ? 'bg-blue-50 border-l-4 border-blue-500 pl-2' : ''
                           }`}
                           onClick={() => setSidebarOpen(false)}
                         >
-                          <p className="font-medium truncate pr-8">{session.title || 'Untitled Conversation'}</p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {new Date(session.lastActivityAt).toLocaleString()}
+                          <div className="flex items-center">
+                            <svg className="w-4 h-4 text-gray-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                            <p className="font-medium text-gray-700 truncate pr-8">{session.title || 'Untitled Conversation'}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 pl-6">
+                            {new Date(session.lastActivityAt).toLocaleDateString()} · {new Date(session.lastActivityAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </p>
                         </Link>
                         <button

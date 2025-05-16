@@ -45,11 +45,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-gray-200 p-4 bg-white">
-      <div className="flex items-end space-x-2 relative">
+    <form onSubmit={handleSubmit} className="border-t border-gray-100 p-4 bg-white bg-opacity-90">
+      <div className="relative">
         <textarea
           ref={textareaRef}
-          className="flex-1 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[50px] max-h-[150px] text-gray-800 placeholder-gray-500"
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none min-h-[50px] max-h-[150px] text-gray-700 placeholder-gray-400 shadow-sm"
           placeholder="Type your medical question..."
           value={message}
           onChange={handleTextareaChange}
@@ -59,8 +59,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
         />
         <button
           type="submit"
-          className={`px-4 py-2 bg-blue-500 text-white rounded-lg ${
-            isLoading || !message.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-600'
+          className={`absolute right-2 bottom-2 p-2 rounded-full ${
+            isLoading || !message.trim() 
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+              : 'bg-blue-500 text-white hover:bg-blue-600 transition-colors'
           }`}
           disabled={isLoading || !message.trim()}
         >
@@ -82,11 +84,23 @@ const MessageInput: React.FC<MessageInputProps> = ({
               />
             </svg>
           ) : (
-            'Send'
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+              />
+            </svg>
           )}
         </button>
       </div>
-      <p className="text-xs text-gray-500 mt-2 text-center">
+      <p className="text-xs text-gray-400 mt-2 text-center">
         Your conversation is private and secure. Medical information is for educational purposes only.
       </p>
     </form>

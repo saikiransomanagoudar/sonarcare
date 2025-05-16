@@ -4,10 +4,23 @@ import { useAuth } from '../../hooks/useAuth';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import { ChatMessage } from '../../types';
-import { sendMessage, deleteChatSession } from '../../lib/api';
+import { sendMessage, deleteChatSession, updateSessionTitle } from '../../lib/api';
 import { initializeSocket, joinChatSession, leaveChatSession, sendSocketMessage, onMessageReceived, onTypingStatus, removeListeners } from '../../lib/socket';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
+
+// Helper function to generate a concise title from the bot's response
+const generateTitleFromResponse = (text: string): string => {
+  // If text is too short, use it as is
+  if (text.length < 60) return text;
+  
+  // Try to extract the first sentence or a fragment
+  const firstSentence = text.split(/[.!?]/)[0];
+  if (firstSentence.length < 80) return firstSentence;
+  
+  // If first sentence is too long, just take the first 50 chars and add ellipsis
+  return firstSentence.substring(0, 50).trim() + '...';
+};
 
 interface ChatLayoutProps {
   initialMessages?: ChatMessage[];
@@ -19,11 +32,34 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [isLoading, setIsLoading] = useState(false);
   const [botIsTyping, setBotIsTyping] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState<string>('');
   const router = useRouter();
   
   // Use refs to track message IDs and texts to prevent duplicates
   const processedMessages = useRef(new Set<string>());
   const lastMessageTexts = useRef(new Set<string>());
+  const titleGenerated = useRef<boolean>(false);
+  const messagesRef = useRef<ChatMessage[]>(initialMessages);
+
+  // Keep messagesRef updated with the latest messages
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  
+  // Generate title from initial messages if there are any bot messages
+  useEffect(() => {
+    if (initialMessages.length > 0 && !titleGenerated.current) {
+      const botMessages = initialMessages.filter(m => m.sender === 'bot');
+      if (botMessages.length > 0) {
+        const firstBotMessage = botMessages[0];
+        const title = generateTitleFromResponse(firstBotMessage.text);
+        setSessionTitle(title);
+        
+        // Don't update the title on the backend if this is initial load - assume it's already set
+        titleGenerated.current = true;
+      }
+    }
+  }, [initialMessages]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -77,6 +113,59 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       if (message.sender === 'bot') {
         setIsLoading(false);
         setBotIsTyping(false);
+        
+        // Generate title from first bot response if we haven't already
+        // Using messagesRef to avoid dependency on messages array
+        const currentMessages = messagesRef.current;
+        const existingBotMessages = currentMessages.filter(m => m.sender === 'bot').length;
+        
+        if (existingBotMessages === 0 && !titleGenerated.current) {
+          // Generate a more meaningful title
+          let title = "";
+          
+          // Get topic from the message text
+          // Try to extract a meaningful phrase from the bot response
+          const text = message.text;
+          
+          // Try different strategies to extract a good title
+          if (text.includes("I'm sorry to hear you're experiencing")) {
+            // Extract the symptom
+            const symptomsMatch = text.match(/experiencing\s+(.*?)(?:\.|\s+It\s+can)/i);
+            if (symptomsMatch && symptomsMatch[1]) {
+              title = `About ${symptomsMatch[1]}`;
+            }
+          } else if (text.toLowerCase().includes("about") && text.includes(":")) {
+            // Look for sections with headers/topics
+            const aboutMatch = text.match(/about\s+(.*?):/i);
+            if (aboutMatch && aboutMatch[1]) {
+              title = aboutMatch[1];
+            }
+          } else {
+            // Default to first sentence trimming
+            title = generateTitleFromResponse(text);
+          }
+          
+          // Ensure the title is not too long and starts with a capital letter
+          if (title.length > 60) title = title.substring(0, 57) + "...";
+          title = title.charAt(0).toUpperCase() + title.slice(1);
+          
+          // Update UI and backend
+          setSessionTitle(title);
+          
+          try {
+            updateSessionTitle(sessionId, title)
+              .then(() => {
+                titleGenerated.current = true;
+                // Force reload the sessions in the sidebar using a custom event
+                window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
+              })
+              .catch(err => {
+                console.error("Failed to update session title:", err);
+              });
+          } catch (error) {
+            console.error("Error updating session title:", error);
+          }
+        }
       }
     });
 
@@ -90,7 +179,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       }
       removeListeners();
     };
-  }, [currentUser, sessionId]);
+  }, [currentUser, sessionId]); // Removed messages dependency
 
   // Handle sending message
   const handleSendMessage = async (text: string) => {
@@ -202,14 +291,27 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   };
 
   return (
-    <div className="flex flex-col h-full max-w-[50%] md:max-w-[45%] mx-auto">
-      <div className="bg-white bg-opacity-90 backdrop-blur-sm border-b border-gray-200 p-2 flex justify-between items-center">
-        <div className="text-sm text-gray-500">
-          {messages.length > 0 ? `${messages.length} messages` : 'New conversation'}
+    <div className="flex flex-col h-full w-full max-w-4xl mx-auto px-4">
+      <div className="bg-white bg-opacity-95 backdrop-blur-md border border-gray-100 shadow-sm rounded-lg mt-4 mb-2 p-3 flex justify-between items-center">
+        <div className="flex items-center">
+          <svg 
+            className="h-5 w-5 text-blue-500 mr-2" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2"
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span className="font-medium text-gray-700">
+            {sessionTitle || (messages.length > 0 ? `Conversation (${messages.length} messages)` : 'New conversation')}
+          </span>
         </div>
         <button
           onClick={handleDeleteSession}
-          className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-gray-100"
+          className="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-gray-100 transition-colors"
           title="Delete conversation"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -217,14 +319,16 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
           </svg>
         </button>
       </div>
-      <MessageList 
-        messages={messages} 
-        isLoading={isLoading || botIsTyping} 
-      />
-      <MessageInput 
-        onSendMessage={handleSendMessage} 
-        isLoading={isLoading} 
-      />
+      <div className="flex-1 overflow-hidden bg-white bg-opacity-95 backdrop-blur-md border border-gray-100 shadow-md rounded-xl flex flex-col">
+        <MessageList 
+          messages={messages} 
+          isLoading={isLoading || botIsTyping} 
+        />
+        <MessageInput 
+          onSendMessage={handleSendMessage} 
+          isLoading={isLoading} 
+        />
+      </div>
     </div>
   );
 };

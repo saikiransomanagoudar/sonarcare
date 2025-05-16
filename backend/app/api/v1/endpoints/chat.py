@@ -7,7 +7,7 @@ import logging
 
 from app.core.security import get_current_user
 from app.services.chat_service import process_message, get_user_sessions, get_session_messages
-from app.services.firebase_service import create_session, create_message, get_messages, get_sessions, delete_session, get_session
+from app.services.firebase_service import create_session, create_message, get_messages, get_sessions, delete_session, get_session, update_session
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +45,11 @@ class ChatSessionResponse(BaseModel):
 class ChatResponse(BaseModel):
     message: ChatMessageResponse
     sessionId: str
+
+# Session update model
+class ChatSessionUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
 
 # Chat endpoints
 @router.post("/message", response_model=ChatResponse)
@@ -168,3 +173,43 @@ async def delete_chat_session(sessionId: str, user = Depends(get_current_user)):
     
     await delete_session(sessionId)
     return 
+
+# Add the PATCH endpoint for updating session title
+@router.patch("/session/{sessionId}", response_model=ChatSessionResponse)
+async def update_chat_session(
+    sessionId: str, 
+    request: ChatSessionUpdateRequest, 
+    user = Depends(get_current_user)
+):
+    """
+    Update a chat session title or summary.
+    """
+    # Get the session first to verify ownership
+    session = await get_session(sessionId)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+    
+    # Verify the user ID matches the authenticated user
+    if user["uid"] != session["userId"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to update this session",
+        )
+    
+    # Create update data dictionary with only provided fields
+    update_data = {}
+    if request.title is not None:
+        update_data["title"] = request.title
+    if request.summary is not None:
+        update_data["summary"] = request.summary
+    
+    # Only update if there's something to update
+    if update_data:
+        await update_session(sessionId, update_data)
+    
+    # Get the updated session
+    updated_session = await get_session(sessionId)
+    return updated_session 

@@ -94,7 +94,7 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
             "userId": user_id,
             "createdAt": datetime.now(),
             "lastActivityAt": datetime.now(),
-            "title": "New Conversation",
+            "title": "New Medical Conversation",
             "summary": None
         }
     
@@ -103,7 +103,7 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
         "userId": user_id,
         "createdAt": now,
         "lastActivityAt": now,
-        "title": "New Conversation",
+        "title": "New Medical Conversation",
     }
     
     # Firebase operations are not async, run them as is
@@ -164,10 +164,19 @@ async def update_session(session_id: str, data: Dict[str, Any]) -> None:
     """Update a chat session"""
     if not db:
         # Mock implementation for development
+        logger.info(f"Mock: Updating session {session_id} with data: {data}")
         return
     
-    # Firebase operations are not async
-    db.collection("chatSessions").document(session_id).update(data)
+    try:
+        logger.info(f"Updating session {session_id} with data: {data}")
+        
+        # Firebase operations are not async
+        db.collection("chatSessions").document(session_id).update(data)
+        
+        logger.info(f"Successfully updated session {session_id}")
+    except Exception as e:
+        logger.error(f"Error updating session {session_id}: {str(e)}")
+        raise e  # Re-raise the exception to be handled by the API
 
 async def delete_session(session_id: str) -> None:
     """Delete a chat session and its messages"""

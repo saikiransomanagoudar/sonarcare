@@ -189,11 +189,15 @@ export default function SplineScene() {
       <div 
         ref={containerRef}
         className="absolute inset-0 z-0 w-full h-full overflow-hidden"
-        style={{ pointerEvents: 'auto' }}
+        style={{ pointerEvents: 'auto',
+          clipPath: 'inset(64px 0 0 0)',
+        }}
       >
-        <SplineComponent 
+        <SplineComponent
           // scene="https://prod.spline.design/1oh88s2MKugO28su/scene.splinecode"
-          scene="https://prod.spline.design/9V1RlKhE43C2SUU0/scene.splinecode"
+          // scene="https://prod.spline.design/9V1RlKhE43C2SUU0/scene.splinecode"
+          // scene="https://prod.spline.design/vhZLyN0x0X9AGNym/scene.splinecode"
+          scene="https://prod.spline.design/al3F-8TlaFrhgSVg/scene.splinecode"
           onLoad={onLoad}
         />
       </div>
