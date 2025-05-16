@@ -6,6 +6,10 @@
 /frontend/.next
 /backend/.env
 /backend/app/__pycache__
+/backend/app/api/v1/endpoints/__pycache__
+/backend/app/agents/__pycache__
+/backend/app/core/__pycache__
+/backend/app/services/__pycache__
 /backend/sonarcare-532c4-firebase-adminsdk-fbsvc-bab5212099.json
 /.pnp
 .pnp.*
