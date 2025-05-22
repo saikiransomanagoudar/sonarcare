@@ -18,6 +18,7 @@ export default function NewChatPage() {
   const { currentUser, loading } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
 
   // Add class to body to ensure full interaction with Spline
   useEffect(() => {
@@ -28,6 +29,14 @@ export default function NewChatPage() {
       document.body.classList.remove("spline-active");
     };
   }, []);
+
+  // Toggle sidebar visibility
+  const toggleSidebar = () => {
+    setSidebarVisible(!sidebarVisible);
+    // Dispatch a custom event that the layout component can listen for
+    const event = new CustomEvent('toggleSidebar');
+    window.dispatchEvent(event);
+  };
 
   const handleSendMessage = async (text: string) => {
     if (!currentUser || !text.trim() || isSubmitting) return;
@@ -70,6 +79,27 @@ export default function NewChatPage() {
       <SplineScene />
       
       <div className="absolute inset-0 bg-white/5 backdrop-blur-[2px] z-0"></div>
+      
+      {/* Hamburger menu button for sidebar toggle */}
+      <button 
+        onClick={toggleSidebar}
+        className="absolute top-4 left-4 z-20 p-2 bg-white rounded-lg shadow-md hover:bg-gray-100 transition-colors"
+        aria-label="Toggle sidebar"
+      >
+        <svg 
+          className="h-5 w-5 text-gray-700" 
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth="2" 
+            d="M4 6h16M4 12h16M4 18h16" 
+          />
+        </svg>
+      </button>
       
       <div className="flex-1 overflow-hidden p-6 flex flex-col items-center justify-center relative z-10">
         <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center">

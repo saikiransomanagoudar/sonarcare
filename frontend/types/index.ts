@@ -30,6 +30,7 @@ export interface ChatMessage {
     [key: string]: any;
   };
   isError?: boolean;
+  isStreaming?: boolean;
 }
 
 // API request types

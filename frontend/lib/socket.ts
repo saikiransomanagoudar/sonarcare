@@ -2,6 +2,20 @@ import { io, Socket } from 'socket.io-client';
 import { WebSocketMessage, ChatMessage } from '../types';
 
 let socket: Socket | null = null;
+// Create a cache for recently sent messages to prevent duplicates on reconnection
+const sentMessagesCache = new Map<string, number>();
+
+// Helper to clean up old cache entries
+const cleanupMessageCache = () => {
+  const now = Date.now();
+  const maxAge = 5 * 60 * 1000; // 5 minutes
+  
+  sentMessagesCache.forEach((timestamp, key) => {
+    if (now - timestamp > maxAge) {
+      sentMessagesCache.delete(key);
+    }
+  });
+};
 
 export const initializeSocket = (userId: string) => {
   if (!socket) {
@@ -64,6 +78,24 @@ export const leaveChatSession = (sessionId: string) => {
 
 export const sendSocketMessage = (message: string, sessionId: string, userId: string) => {
   if (socket) {
+    // Create a unique key for this message
+    const messageKey = `${userId}-${sessionId}-${message}`;
+    
+    // Check if we've recently sent this exact message
+    if (sentMessagesCache.has(messageKey)) {
+      console.log('Prevented duplicate message send:', message.substring(0, 20) + '...');
+      return;
+    }
+    
+    // Add to cache with current timestamp
+    sentMessagesCache.set(messageKey, Date.now());
+    
+    // Clean up old cache entries occasionally
+    if (Math.random() < 0.1) { // 10% chance to run cleanup
+      cleanupMessageCache();
+    }
+    
+    // Send the message
     socket.emit('message', {
       text: message,
       sessionId,
@@ -86,9 +118,23 @@ export const onTypingStatus = (callback: (isTyping: boolean) => void) => {
   }
 };
 
+export const onStreamToken = (callback: (tokenData: { messageId: string, token: string }) => void) => {
+  if (socket) {
+    socket.on('stream_token', callback);
+  }
+};
+
+export const onStreamComplete = (callback: (messageId: string) => void) => {
+  if (socket) {
+    socket.on('stream_complete', callback);
+  }
+};
+
 export const removeListeners = () => {
   if (socket) {
     socket.off('message');
     socket.off('typing');
+    socket.off('stream_token');
+    socket.off('stream_complete');
   }
 }; 

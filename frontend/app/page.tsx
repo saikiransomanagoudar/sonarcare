@@ -116,9 +116,6 @@ export default function Home() {
               <p className="text-gray-400">Your AI medical assistant</p>
             </div>
             <div className="text-center md:text-right">
-              <p className="text-gray-400">
-                © {new Date().getFullYear()} SonarCare. All rights reserved.
-              </p>
               <p className="text-gray-400 text-sm mt-1">
                 Powered by Perplexity Sonar & LangGraph
               </p>

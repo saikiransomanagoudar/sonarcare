@@ -3,7 +3,7 @@ uvicorn==0.28.0
 langchain==0.1.13
 langchain-core==0.1.33
 langchain-experimental==0.0.54
-perplexity-ai==0.0.13
+perplexipy
 firebase-admin==6.4.0
 python-socketio==5.11.1
 websockets==12.0

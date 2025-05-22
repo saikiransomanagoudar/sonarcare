@@ -59,7 +59,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         />
         <button
           type="submit"
-          className={`absolute right-2 bottom-2 p-2 rounded-full ${
+          className={`absolute right-2 bottom-3 p-2 rounded-full ${
             isLoading || !message.trim() 
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
               : 'bg-blue-500 text-white hover:bg-blue-600 transition-colors'

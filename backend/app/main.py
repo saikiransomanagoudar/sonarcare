@@ -75,6 +75,30 @@ socket_app = socketio.ASGIApp(
     other_asgi_app=app
 )
 
+# Add a recently processed messages cache to avoid duplicates
+recent_messages = {}
+MAX_CACHE_SIZE = 1000
+MAX_AGE_SECONDS = 300  # 5 minutes
+
+# Helper function to clean up old cache entries
+async def cleanup_message_cache():
+    now = datetime.now().timestamp()
+    keys_to_remove = []
+    
+    for key, data in recent_messages.items():
+        if now - data["timestamp"] > MAX_AGE_SECONDS:
+            keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        del recent_messages[key]
+    
+    # If still too many entries, remove oldest
+    if len(recent_messages) > MAX_CACHE_SIZE:
+        sorted_keys = sorted(recent_messages.keys(), 
+                             key=lambda k: recent_messages[k]["timestamp"])
+        for key in sorted_keys[:len(recent_messages) - MAX_CACHE_SIZE]:
+            del recent_messages[key]
+
 # Include routers
 app.include_router(chat.router, prefix="/api/v1")
 
@@ -98,18 +122,41 @@ async def disconnect(sid):
 @sio.event
 async def join(sid, data):
     if "sessionId" in data:
-        await sio.enter_room(sid, data["sessionId"])
-        print(f"Client {sid} joined room: {data['sessionId']}")
+        session_id = data["sessionId"]
+        print(f"Client {sid} joined room: {session_id}")
+        sio.enter_room(sid, session_id)
+        await sio.emit("joined", {"status": "joined", "sessionId": session_id}, room=sid)
 
 @sio.event
 async def leave(sid, data):
     if "sessionId" in data:
-        await sio.leave_room(sid, data["sessionId"])
-        print(f"Client {sid} left room: {data['sessionId']}")
+        session_id = data["sessionId"]
+        print(f"Client {sid} left room: {session_id}")
+        sio.leave_room(sid, session_id)
 
 @sio.event
 async def message(sid, data):
     if all(key in data for key in ["text", "sessionId", "userId"]):
+        # Create a message deduplication key
+        message_key = f"{data['userId']}:{data['sessionId']}:{data['text']}"
+        
+        # Check if this is a duplicate message (sent on page refresh)
+        if message_key in recent_messages:
+            print(f"Detected duplicate message: {data['text'][:30]}...")
+            # Don't process it again, but don't block it either
+            # This way the user's message will still appear in their UI
+            return
+        
+        # Add to recently processed messages
+        recent_messages[message_key] = {
+            "timestamp": datetime.now().timestamp(),
+            "processed": True
+        }
+        
+        # Clean up cache occasionally
+        if len(recent_messages) % 10 == 0:
+            await cleanup_message_cache()
+        
         # Emit the user message to all clients in the room
         user_message = {
             **data,
@@ -139,8 +186,8 @@ async def message(sid, data):
             }
             await sio.emit("message", error_message, room=data["sessionId"])
 
-# Update the main app to use the socket_app which includes the FastAPI app
-app = socket_app
+# Mount the Socket.IO app
+app.mount("/", socket_app)
 
 if __name__ == "__main__":
     # Run the app with uvicorn

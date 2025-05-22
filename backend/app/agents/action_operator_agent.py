@@ -45,30 +45,38 @@ class ActionOperatorAgent(BaseActionAgent):
         """
         # Build the intent classification prompt
         prompt = f"""Classify the user's medical query intent into exactly one of these categories:
-- greeting: Simple greetings, introductions, or small talk
-- symptom_inquiry: Questions about symptoms, their causes, or what they might indicate
-- treatment_advice: Questions about treatments, medications, or self-care
-- hospital_search: Seeking hospitals, clinics, or medical facilities
-- department_inquiry: Questions about which medical department or specialist to consult
-- deep_medical_inquiry: Requests for in-depth research or detailed medical information
-- unbiased_factual_request: Requests for unbiased information on controversial medical topics
-- unknown: Queries that don't fit any other category
+        - greeting: Simple greetings, introductions, or small talk
+        - symptom_inquiry: Questions about symptoms, their causes, or what they might indicate
+        - treatment_advice: Questions about treatments, medications, or self-care
+        - hospital_search: Seeking hospitals, clinics, or medical facilities
+        - department_inquiry: Questions about which medical department or specialist to consult
+        - deep_medical_inquiry: Requests for in-depth research or detailed medical information
+        - unbiased_factual_request: Requests for unbiased information on controversial medical topics
+        - unknown: Queries that don't fit any other category
 
-User query: '{query}'
+        User query: '{query}'
 
-Response format: Return only the intent category name, nothing else.
-"""
+        Response format: Return only the intent category name, nothing else.
+        """
         
         # Generate the intent classification
         intent_response, metadata = await self._generate_response(prompt)
         
+        # Store the original response before cleaning
+        original_intent_response = intent_response.strip()
+        
         # Clean up and validate the response
-        intent = intent_response.strip().lower()
+        intent = original_intent_response.lower()
+        
+        # Add better logging
+        logger.info(f"Intent classification for query: '{query}' -> '{intent}'")
+        
         if intent not in self.INTENTS:
-            intent = "unknown"
-            logger.warning(f"Invalid intent detected: {intent_response}. Defaulting to 'unknown'.")
+            logger.warning(f"Invalid intent detected: '{intent_response}'. Defaulting to 'symptom_inquiry'.")
+            intent = "symptom_inquiry"  # Change default from "unknown" to something more useful
         
         # Add intent to metadata
         metadata["intent"] = intent
+        metadata["original_intent_response"] = original_intent_response
         
-        return intent, metadata 
+        return intent, metadata

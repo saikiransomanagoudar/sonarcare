@@ -5,7 +5,17 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import { ChatMessage } from '../../types';
 import { sendMessage, deleteChatSession, updateSessionTitle } from '../../lib/api';
-import { initializeSocket, joinChatSession, leaveChatSession, sendSocketMessage, onMessageReceived, onTypingStatus, removeListeners } from '../../lib/socket';
+import { 
+  initializeSocket, 
+  joinChatSession, 
+  leaveChatSession, 
+  sendSocketMessage, 
+  onMessageReceived, 
+  onTypingStatus, 
+  onStreamToken,
+  onStreamComplete,
+  removeListeners 
+} from '../../lib/socket';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
 
@@ -22,6 +32,11 @@ const generateTitleFromResponse = (text: string): string => {
   return firstSentence.substring(0, 50).trim() + '...';
 };
 
+// Add extended type for messages with sorting timestamps
+interface ChatMessageWithTimestamp extends ChatMessage {
+  _sortTimestamp?: number;
+}
+
 interface ChatLayoutProps {
   initialMessages?: ChatMessage[];
   sessionId: string;
@@ -33,6 +48,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   const [isLoading, setIsLoading] = useState(false);
   const [botIsTyping, setBotIsTyping] = useState(false);
   const [sessionTitle, setSessionTitle] = useState<string>('');
+  const [sidebarVisible, setSidebarVisible] = useState(false);
   const router = useRouter();
   
   // Use refs to track message IDs and texts to prevent duplicates
@@ -40,12 +56,46 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   const lastMessageTexts = useRef(new Set<string>());
   const titleGenerated = useRef<boolean>(false);
   const messagesRef = useRef<ChatMessage[]>(initialMessages);
+  // Add a flag to track initial load
+  const initialLoadComplete = useRef<boolean>(false);
+
+  // Add a new state for streaming responses
+  const [streamingMessages, setStreamingMessages] = useState<{[key: string]: string}>({});
 
   // Keep messagesRef updated with the latest messages
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
   
+  // Pre-populate processed messages on initial load
+  useEffect(() => {
+    // Only do this once on initial load
+    if (!initialLoadComplete.current && initialMessages.length > 0) {
+      console.log("Pre-populating processed message cache with initial messages");
+      
+      // Mark all initial messages as processed to prevent duplicates
+      initialMessages.forEach(msg => {
+        if (msg.id) {
+          processedMessages.current.add(msg.id);
+          
+          // Also add user messages to text cache for extra protection against duplicates
+          if (msg.sender === 'user') {
+            lastMessageTexts.current.add(`user-${msg.text}`);
+          }
+        }
+      });
+      
+      initialLoadComplete.current = true;
+    }
+  }, [initialMessages]);
+
+  // Toggle sidebar visibility
+  const toggleSidebar = () => {
+    // Dispatch a custom event that the layout component can listen for
+    const event = new CustomEvent('toggleSidebar');
+    window.dispatchEvent(event);
+  };
+
   // Generate title from initial messages if there are any bot messages
   useEffect(() => {
     if (initialMessages.length > 0 && !titleGenerated.current) {
@@ -107,7 +157,92 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       }
       
       // Add the message to our list
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => {
+        // First add the new message
+        const newMessages = [...prev, message];
+        
+        // Now normalize timestamps for consistent sorting
+        const messagesWithNormalizedTimestamps = newMessages.map(msg => {
+          // Create a timestamp that's guaranteed to be a number
+          let timestamp = 0;
+          
+          if (msg.timestamp) {
+            // Handle different timestamp formats
+            if (typeof msg.timestamp === 'object' && msg.timestamp.seconds) {
+              // Firestore timestamp object
+              timestamp = msg.timestamp.seconds * 1000;
+            } else if (typeof msg.timestamp === 'string') {
+              // ISO string
+              timestamp = new Date(msg.timestamp).getTime();
+            } else if (msg.timestamp instanceof Date) {
+              // Date object
+              timestamp = msg.timestamp.getTime();
+            } else if (typeof msg.timestamp === 'number') {
+              // Already a timestamp
+              timestamp = msg.timestamp;
+            }
+          }
+          
+          // Return a copy with numerical timestamp for sorting
+          return {
+            ...msg,
+            _sortTimestamp: timestamp
+          } as ChatMessageWithTimestamp;
+        });
+        
+        // Group messages by sender
+        const userMessages = messagesWithNormalizedTimestamps.filter(m => m.sender === 'user');
+        const botMessages = messagesWithNormalizedTimestamps.filter(m => m.sender === 'bot');
+        
+        // Check if we need to enforce alternating pattern
+        const needsAlternating = 
+          userMessages.length > 0 && 
+          botMessages.length > 0 && 
+          (
+            // All user messages first, then all bot messages
+            userMessages.every(u => (u._sortTimestamp || 0) < (botMessages[0]._sortTimestamp || 0)) ||
+            // All bot messages first, then all user messages  
+            botMessages.every(b => (b._sortTimestamp || 0) < (userMessages[0]._sortTimestamp || 0))
+          );
+        
+        if (needsAlternating) {
+          // Sort each group by timestamp
+          userMessages.sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0));
+          botMessages.sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0));
+          
+          // Determine which type comes first based on first message
+          const userFirst = 
+            userMessages.length > 0 && botMessages.length > 0 ? 
+            (userMessages[0]._sortTimestamp || 0) < (botMessages[0]._sortTimestamp || 0) : 
+            userMessages.length > 0;
+          
+          // Interleave messages
+          const interleavedMessages: ChatMessageWithTimestamp[] = [];
+          const maxLength = Math.max(userMessages.length, botMessages.length);
+          
+          if (userFirst) {
+            // User message first
+            for (let i = 0; i < maxLength; i++) {
+              if (i < userMessages.length) interleavedMessages.push(userMessages[i]);
+              if (i < botMessages.length) interleavedMessages.push(botMessages[i]);
+            }
+          } else {
+            // Bot message first
+            for (let i = 0; i < maxLength; i++) {
+              if (i < botMessages.length) interleavedMessages.push(botMessages[i]);
+              if (i < userMessages.length) interleavedMessages.push(userMessages[i]);
+            }
+          }
+          
+          // Return alternating messages (remove temp property)
+          return interleavedMessages.map(({_sortTimestamp, ...rest}) => rest);
+        }
+          
+        // Sort by the numerical timestamp
+        return messagesWithNormalizedTimestamps
+          .sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0))
+          .map(({ _sortTimestamp, ...rest }) => rest); // Remove temp property
+      });
       
       // If bot message received, stop the loading state
       if (message.sender === 'bot') {
@@ -127,27 +262,34 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
           // Try to extract a meaningful phrase from the bot response
           const text = message.text;
           
+          console.log("[Title Generation] Processing first bot message:", text.substring(0, 100) + "...");
+          
           // Try different strategies to extract a good title
           if (text.includes("I'm sorry to hear you're experiencing")) {
             // Extract the symptom
             const symptomsMatch = text.match(/experiencing\s+(.*?)(?:\.|\s+It\s+can)/i);
             if (symptomsMatch && symptomsMatch[1]) {
               title = `About ${symptomsMatch[1]}`;
+              console.log("[Title Generation] Extracted symptom:", title);
             }
           } else if (text.toLowerCase().includes("about") && text.includes(":")) {
             // Look for sections with headers/topics
             const aboutMatch = text.match(/about\s+(.*?):/i);
             if (aboutMatch && aboutMatch[1]) {
               title = aboutMatch[1];
+              console.log("[Title Generation] Extracted topic from 'about' phrase:", title);
             }
           } else {
             // Default to first sentence trimming
             title = generateTitleFromResponse(text);
+            console.log("[Title Generation] Generated from first sentence:", title);
           }
           
           // Ensure the title is not too long and starts with a capital letter
           if (title.length > 60) title = title.substring(0, 57) + "...";
           title = title.charAt(0).toUpperCase() + title.slice(1);
+          
+          console.log("[Title Generation] Final title:", title);
           
           // Update UI and backend
           setSessionTitle(title);
@@ -156,14 +298,15 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
             updateSessionTitle(sessionId, title)
               .then(() => {
                 titleGenerated.current = true;
+                console.log("[Title Generation] Title updated in backend and sidebar will refresh");
                 // Force reload the sessions in the sidebar using a custom event
                 window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
               })
               .catch(err => {
-                console.error("Failed to update session title:", err);
+                console.error("[Title Generation] Failed to update session title:", err);
               });
           } catch (error) {
-            console.error("Error updating session title:", error);
+            console.error("[Title Generation] Error updating session title:", error);
           }
         }
       }
@@ -171,6 +314,29 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
 
     // Setup typing indicator listener
     onTypingStatus(setBotIsTyping);
+
+    // Setup streaming message handlers
+    onStreamToken(({ messageId, token }) => {
+      console.log("Received token:", token, "for message:", messageId);
+      
+      setStreamingMessages(prev => {
+        const currentText = prev[messageId] || "";
+        return {
+          ...prev,
+          [messageId]: currentText + token
+        };
+      });
+    });
+
+    onStreamComplete((messageId) => {
+      console.log("Stream complete for message:", messageId);
+      
+      // Clear the streaming message
+      setStreamingMessages(prev => {
+        const { [messageId]: _, ...rest } = prev;
+        return rest;
+      });
+    });
 
     // Cleanup
     return () => {
@@ -291,42 +457,63 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   };
 
   return (
-    <div className="flex flex-col h-full w-full max-w-4xl mx-auto px-4">
-      <div className="bg-white bg-opacity-95 backdrop-blur-md border border-gray-100 shadow-sm rounded-lg mt-4 mb-2 p-3 flex justify-between items-center">
-        <div className="flex items-center">
-          <svg 
-            className="h-5 w-5 text-blue-500 mr-2" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2"
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <span className="font-medium text-gray-700">
-            {sessionTitle || (messages.length > 0 ? `Conversation (${messages.length} messages)` : 'New conversation')}
-          </span>
-        </div>
-        <button
-          onClick={handleDeleteSession}
-          className="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-gray-100 transition-colors"
-          title="Delete conversation"
+    <div className="w-full max-w-4xl h-full flex flex-col bg-white rounded-lg shadow-lg overflow-hidden relative">
+      {/* Chat header with actions */}
+      <div className="flex items-center justify-between bg-white border-b border-gray-200 p-3">
+        {/* Hamburger menu for sidebar toggle */}
+        <button 
+          onClick={toggleSidebar}
+          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          aria-label="Toggle sidebar"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          <svg 
+            className="h-5 w-5 text-gray-700" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth="2" 
+              d="M4 6h16M4 12h16M4 18h16" 
+            />
           </svg>
         </button>
+        
+        <div className="flex-1 flex justify-end">
+          <button
+            onClick={handleDeleteSession}
+            className="p-2 text-gray-500 hover:text-red-500 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Delete conversation"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-hidden bg-white bg-opacity-95 backdrop-blur-md border border-gray-100 shadow-md rounded-xl flex flex-col">
+      
+      {/* Messages container */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 bg-gray-50">
         <MessageList 
           messages={messages} 
-          isLoading={isLoading || botIsTyping} 
+          streamingMessages={streamingMessages}
         />
-        <MessageInput 
-          onSendMessage={handleSendMessage} 
-          isLoading={isLoading} 
+        {botIsTyping && Object.keys(streamingMessages).length === 0 && (
+          <div className="flex items-center space-x-2 p-2 bg-gray-100 rounded-lg w-max ml-2 mt-2">
+            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        )}
+      </div>
+      
+      {/* Message input */}
+      <div className="border-t border-gray-200 p-4 bg-white">
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
         />
       </div>
     </div>

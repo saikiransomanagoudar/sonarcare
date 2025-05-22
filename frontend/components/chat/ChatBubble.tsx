@@ -8,6 +8,7 @@ interface ChatBubbleProps {
 
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const isUser = message.sender === 'user';
+  const isStreaming = message.isStreaming === true;
   
   // Format timestamp
   const formattedTime = message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], {
@@ -41,7 +42,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
       <div className={`max-w-[75%] md:max-w-[70%] ${
         isUser 
           ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-tr-sm' 
-          : 'bg-white shadow-sm border border-gray-100 text-gray-800 rounded-2xl rounded-tl-sm'
+          : `${isStreaming ? 'bg-gradient-to-b from-white to-blue-50 border border-blue-100' : 'bg-white shadow-sm border border-gray-100'} text-gray-800 rounded-2xl rounded-tl-sm`
       } px-4 py-3`}>
         {isUser ? (
           <div className="text-sm">{message.text}</div>
@@ -58,13 +59,16 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
             {message.isError ? (
               <div className="text-red-500 text-sm">{message.text}</div>
             ) : (
-              <div className="prose prose-sm prose-blue max-w-none text-gray-800">
+              <div className={`prose prose-sm prose-blue max-w-none text-gray-800 ${isStreaming ? 'streaming-text' : ''}`}>
                 <ReactMarkdown>{message.text}</ReactMarkdown>
+                {isStreaming && (
+                  <span className="inline-block w-1.5 h-4 ml-0.5 bg-blue-500 animate-pulse"></span>
+                )}
               </div>
             )}
             
-            {/* Display model information if available */}
-            {message.metadata?.sonar_model_used && (
+            {/* Display model information if available and not streaming */}
+            {message.metadata?.sonar_model_used && !isStreaming && (
               <div className="text-xs text-gray-500 mt-2">
                 Powered by: {message.metadata.sonar_model_used}
               </div>
@@ -72,10 +76,12 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
           </div>
         )}
         
-        {/* Timestamp */}
-        <div className={`text-xs mt-1 text-right ${isUser ? 'text-blue-100' : 'text-gray-400'}`}>
-          {formattedTime}
-        </div>
+        {/* Timestamp (don't show for streaming messages) */}
+        {!isStreaming && (
+          <div className={`text-xs mt-1 text-right ${isUser ? 'text-blue-100' : 'text-gray-400'}`}>
+            {formattedTime}
+          </div>
+        )}
       </div>
       
       {isUser && (

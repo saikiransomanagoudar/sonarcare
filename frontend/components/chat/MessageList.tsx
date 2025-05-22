@@ -2,21 +2,134 @@ import React, { useEffect, useRef } from 'react';
 import ChatBubble from './ChatBubble';
 import { ChatMessage } from '../../types';
 
+// Add extended type for messages with sorting timestamps
+interface ChatMessageWithTimestamp extends ChatMessage {
+  _sortTimestamp?: number;
+}
+
 interface MessageListProps {
   messages: ChatMessage[];
   isLoading?: boolean;
+  streamingMessages?: {[key: string]: string};
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }) => {
+const MessageList: React.FC<MessageListProps> = ({ 
+  messages, 
+  isLoading = false,
+  streamingMessages = {}
+}) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages or streaming updates
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, streamingMessages]);
+
+  // Sort messages by timestamp to ensure chronological order
+  const sortedMessages = React.useMemo(() => {
+    console.log("MessageList - Original messages:", messages);
+    
+    // Create a copy of messages with normalized timestamp values for consistent sorting
+    const messagesWithNormalizedTimestamps = messages.map(msg => {
+      // Create a timestamp that's guaranteed to be a number
+      let timestamp = 0;
+      
+      if (msg.timestamp) {
+        // Handle different timestamp formats
+        if (typeof msg.timestamp === 'object' && msg.timestamp.seconds) {
+          // Firestore timestamp object
+          timestamp = msg.timestamp.seconds * 1000;
+        } else if (typeof msg.timestamp === 'string') {
+          // ISO string
+          timestamp = new Date(msg.timestamp).getTime();
+        } else if (msg.timestamp instanceof Date) {
+          // Date object
+          timestamp = msg.timestamp.getTime();
+        } else if (typeof msg.timestamp === 'number') {
+          // Already a timestamp
+          timestamp = msg.timestamp;
+        }
+      } else {
+        // If no timestamp, use message ID as a fallback to maintain some order
+        // (This assumes IDs have some sequential property)
+        if (msg.id) {
+          // Extract numeric part if it exists
+          const numericPart = msg.id.replace(/\D/g, '');
+          if (numericPart) {
+            timestamp = parseInt(numericPart, 10);
+          }
+        }
+      }
+      
+      // Return a copy with numerical timestamp for sorting
+      return {
+        ...msg,
+        _sortTimestamp: timestamp
+      } as ChatMessageWithTimestamp;
+    });
+    
+    // First attempt to sort by timestamps
+    const timeStampSorted = [...messagesWithNormalizedTimestamps]
+      .sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0));
+    
+    // Check for alternating pattern issues - usually after page refresh
+    const userMessages = timeStampSorted.filter(m => m.sender === 'user');
+    const botMessages = timeStampSorted.filter(m => m.sender === 'bot');
+    
+    // Check for grouping issues (all users, then all bots)
+    if (userMessages.length > 0 && botMessages.length > 0) {
+      // Count sender transitions
+      let transitions = 0;
+      let prevSender = '';
+      
+      for (const msg of timeStampSorted) {
+        if (prevSender && prevSender !== msg.sender) {
+          transitions++;
+        }
+        prevSender = msg.sender;
+      }
+      
+      // If we have too few transitions, enforce alternating pattern
+      const expectedTransitions = Math.min(userMessages.length, botMessages.length);
+      if (transitions < expectedTransitions) {
+        console.log("MessageList - Detected poor message alternation, fixing pattern");
+        
+        // Sort each group by timestamp
+        userMessages.sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0));
+        botMessages.sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0));
+        
+        // Determine which type comes first
+        const userFirst = userMessages.length > 0 && botMessages.length > 0 ?
+          (userMessages[0]._sortTimestamp || 0) < (botMessages[0]._sortTimestamp || 0) :
+          true; // Default to user first
+        
+        // Create alternating pattern
+        const alternatingMessages: ChatMessageWithTimestamp[] = [];
+        const maxLength = Math.max(userMessages.length, botMessages.length);
+        
+        if (userFirst) {
+          for (let i = 0; i < maxLength; i++) {
+            if (i < userMessages.length) alternatingMessages.push(userMessages[i]);
+            if (i < botMessages.length) alternatingMessages.push(botMessages[i]);
+          }
+        } else {
+          for (let i = 0; i < maxLength; i++) {
+            if (i < botMessages.length) alternatingMessages.push(botMessages[i]);
+            if (i < userMessages.length) alternatingMessages.push(userMessages[i]);
+          }
+        }
+        
+        return alternatingMessages.map(({_sortTimestamp, ...rest}) => rest);
+      }
+    }
+    
+    // If sorting by timestamp seems reasonable, use that
+    console.log("MessageList - Using timestamp-sorted messages");
+    return timeStampSorted.map(({_sortTimestamp, ...rest}) => rest);
   }, [messages]);
 
   // If no messages, show welcome message
-  if (messages.length === 0 && !isLoading) {
+  if (sortedMessages.length === 0 && !isLoading && Object.keys(streamingMessages).length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10">
         <div className="max-w-lg">
@@ -47,13 +160,31 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }
     );
   }
 
+  // Create an array for streaming messages to display
+  const streamingBubbles = Object.entries(streamingMessages).map(([messageId, text]) => {
+    const dummyMessage: ChatMessage = {
+      id: messageId,
+      sessionId: '',
+      userId: '',
+      sender: 'bot',
+      text,
+      timestamp: new Date(),
+      isStreaming: true
+    };
+    
+    return <ChatBubble key={`streaming-${messageId}`} message={dummyMessage} />;
+  });
+
   return (
     <div className="flex-1 p-4 overflow-y-auto">      
       {/* Messages */}
       <div className="space-y-4 pb-4">
-        {messages.map((message) => (
+        {sortedMessages.map((message) => (
           <ChatBubble key={message.id} message={message} />
         ))}
+        
+        {/* Streaming messages */}
+        {streamingBubbles}
         
         {/* Loading indicator */}
         {isLoading && (
@@ -72,12 +203,12 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isLoading = false }
       {/* Auto-scroll reference element */}
       <div ref={messagesEndRef} />
       
-      {/* Disclaimer notice */}
+      {/* Disclaimer notice
       <div className="sticky bottom-2 left-0 right-0 mx-auto w-fit bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-yellow-400 p-2 px-4 rounded-full text-xs shadow-md">
         <p className="text-yellow-700">
           <strong>Medical Disclaimer:</strong> Information provided is not a substitute for professional medical advice.
         </p>
-      </div>
+      </div> */}
     </div>
   );
 };
