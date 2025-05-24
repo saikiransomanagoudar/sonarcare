@@ -18,25 +18,21 @@ export default function NewChatPage() {
   const { currentUser, loading } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [sidebarVisible, setSidebarVisible] = useState(false);
 
-  // Add class to body to ensure full interaction with Spline
+  // Add class to body to ensure full interaction with Spline and prevent scrolling
   useEffect(() => {
-    // Enable pointer events on the body
-    document.body.classList.add("spline-active");
+    // Prevent all scrolling on the page
+    const originalOverflow = document.body.style.overflow;
+    const originalDocumentOverflow = document.documentElement.style.overflow;
+    
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
 
     return () => {
-      document.body.classList.remove("spline-active");
+      document.body.style.overflow = originalOverflow;
+      document.documentElement.style.overflow = originalDocumentOverflow;
     };
   }, []);
-
-  // Toggle sidebar visibility
-  const toggleSidebar = () => {
-    setSidebarVisible(!sidebarVisible);
-    // Dispatch a custom event that the layout component can listen for
-    const event = new CustomEvent('toggleSidebar');
-    window.dispatchEvent(event);
-  };
 
   const handleSendMessage = async (text: string) => {
     if (!currentUser || !text.trim() || isSubmitting) return;
@@ -44,18 +40,12 @@ export default function NewChatPage() {
     setIsSubmitting(true);
 
     try {
-      // Create a new chat session
+      // Create a new chat session first
       const session = await createChatSession(currentUser.uid);
 
-      // Send the first message
-      await sendMessage({
-        message: text,
-        sessionId: session.id,
-        userId: currentUser.uid,
-      });
-
-      // Redirect to the new session
-      router.push(`/chat/${session.id}`);
+      // Instead of sending via REST API and redirecting, 
+      // redirect to the session immediately and let the WebSocket handle the message
+      router.push(`/chat/${session.id}?firstMessage=${encodeURIComponent(text)}`);
     } catch (error) {
       console.error("Error creating new chat session:", error);
       setIsSubmitting(false);
@@ -64,45 +54,28 @@ export default function NewChatPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-r from-blue-50 to-indigo-50 relative">
-        <SplineScene />
-        <div className="z-10 bg-white bg-opacity-70 backdrop-blur-md p-8 rounded-xl shadow-xl border border-blue-100">
-          <div className="w-16 h-16 border-t-2 border-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 text-center font-medium">Loading SonarCare...</p>
+      <div className="flex min-h-screen items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <SplineScene />
+        </div>
+        <div className="relative z-10 bg-white/10 backdrop-blur-md p-8 rounded-2xl shadow-2xl border border-white/20">
+          <div className="w-16 h-16 border-t-2 border-blue-400 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-center font-medium">Loading SonarCare...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative">
-      <SplineScene />
+    <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden pt-16">
+      <div className="absolute inset-0 z-0">
+        <SplineScene />
+      </div>
       
       <div className="absolute inset-0 bg-white/5 backdrop-blur-[2px] z-0"></div>
       
-      {/* Hamburger menu button for sidebar toggle */}
-      <button 
-        onClick={toggleSidebar}
-        className="absolute top-4 left-4 z-20 p-2 bg-white rounded-lg shadow-md hover:bg-gray-100 transition-colors"
-        aria-label="Toggle sidebar"
-      >
-        <svg 
-          className="h-5 w-5 text-gray-700" 
-          fill="none" 
-          viewBox="0 0 24 24" 
-          stroke="currentColor"
-        >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth="2" 
-            d="M4 6h16M4 12h16M4 18h16" 
-          />
-        </svg>
-      </button>
-      
-      <div className="flex-1 overflow-hidden p-6 flex flex-col items-center justify-center relative z-10">
-        <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center">
+      <div className="flex-1 p-6 flex flex-col items-center justify-center relative z-10 overflow-hidden">
+        <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center overflow-hidden">
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-gray-800 mb-3">Welcome to SonarCare</h1>
             <p className="text-gray-600 max-w-lg mx-auto">
@@ -134,6 +107,7 @@ export default function NewChatPage() {
             <MessageInput
               onSendMessage={handleSendMessage}
               isLoading={isSubmitting}
+              showSuggestions={true}
             />
             
             <div className="mt-4 bg-yellow-50 rounded-lg p-3 border-l-4 border-yellow-400">

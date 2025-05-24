@@ -177,13 +177,15 @@ export default function AppLayout({
   return (
     <div className="flex flex-col h-screen relative">
       {/* Spline Background */}
-      <SplineScene />
+      <div className="absolute inset-0 z-0">
+        <SplineScene />
+      </div>
       
       <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
       
       <div className="flex flex-1 overflow-hidden relative z-10">
         {/* Sidebar for chat history */}
-        <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block md:relative ${desktopSidebarOpen ? 'md:w-64' : 'md:w-12'} bg-white border-r border-gray-200 overflow-y-auto shadow-sm transition-all duration-300`}>
+        <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block md:relative ${desktopSidebarOpen ? 'md:w-64' : 'md:w-12'} bg-white border-r border-gray-200 shadow-sm transition-all duration-300 flex flex-col h-full`}>
           {/* Toggle button for desktop */}
           <button 
             onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
@@ -207,11 +209,11 @@ export default function AppLayout({
           </button>
           
           {/* Sidebar content - conditionally show full content based on desktopSidebarOpen */}
-          <div className={`relative ${!desktopSidebarOpen && 'md:hidden'}`}>       
-            <div className="px-4 pb-4">
+          <div className={`relative flex-1 flex flex-col ${!desktopSidebarOpen && 'md:hidden'}`}>       
+            <div className="px-4 pb-4 flex-1 flex flex-col">
               <button
                 onClick={handleNewChat}
-                className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+                className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center mb-6"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -219,7 +221,7 @@ export default function AppLayout({
                 New Chat
               </button>
               
-              <div className="mt-6">
+              <div className="flex-1 min-h-0">
                 <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-3 px-2">Recent Conversations</h3>
                 {loadingSessions ? (
                   <div className="flex justify-center py-4">
@@ -228,7 +230,7 @@ export default function AppLayout({
                 ) : sessions.length === 0 ? (
                   <p className="text-center text-sm text-gray-500 py-4">No conversations yet</p>
                 ) : (
-                  <ul className="space-y-1">
+                  <ul className="space-y-1 overflow-y-auto max-h-full pr-2">
                     {sessions.map((session) => (
                       <li key={session.id}>
                         <div className="relative group">

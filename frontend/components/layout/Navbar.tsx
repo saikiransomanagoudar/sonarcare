@@ -35,14 +35,14 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   };
 
   return (
-    <header className="bg-white shadow-sm">
+    <header className="bg-white bg-opacity-90 backdrop-blur-md shadow-sm relative z-20 border-b border-gray-200/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             {currentUser && (
               <button 
                 onClick={onMenuClick}
-                className="mr-4 md:hidden p-2 rounded-md text-gray-500 hover:text-gray-600 hover:bg-gray-100 focus:outline-none"
+                className="mr-4 p-2 rounded-md text-gray-500 hover:text-gray-600 hover:bg-gray-100 focus:outline-none transition-colors"
                 aria-label="Toggle sidebar"
               >
                 <svg 
@@ -139,4 +139,4 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   );
 };
 
-export default Navbar; 
+export default Navbar;

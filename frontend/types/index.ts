@@ -19,12 +19,13 @@ export interface ChatSession {
 
 // Chat Message type
 export interface ChatMessage {
+  [x: string]: any;
   id: string;
   sessionId: string;
   userId: string;
   sender: 'user' | 'bot';
   text: string;
-  timestamp: any; // Firestore Timestamp
+  timestamp: any;
   metadata?: {
     sonar_model_used?: string;
     [key: string]: any;
@@ -36,13 +37,13 @@ export interface ChatMessage {
 // API request types
 export interface ChatRequest {
   message: string;
-  sessionId?: string; // Optional for new sessions
+  sessionId?: string;
   userId: string;
 }
 
 export interface ChatResponse {
   message: ChatMessage;
-  sessionId: string; // Always returned, even for new sessions
+  sessionId: string;
 }
 
 // WebSocket message types

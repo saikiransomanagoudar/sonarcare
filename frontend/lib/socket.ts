@@ -2,8 +2,19 @@ import { io, Socket } from 'socket.io-client';
 import { WebSocketMessage, ChatMessage } from '../types';
 
 let socket: Socket | null = null;
+let currentUserId: string | null = null;
+
 // Create a cache for recently sent messages to prevent duplicates on reconnection
 const sentMessagesCache = new Map<string, number>();
+
+// Event listeners arrays for new streaming functionality
+let messageListeners: ((message: ChatMessage) => void)[] = [];
+let typingListeners: ((isTyping: boolean) => void)[] = [];
+let streamStartListeners: ((message: ChatMessage) => void)[] = [];
+let streamChunkListeners: ((data: { id: string; text: string }) => void)[] = [];
+let streamCompleteListeners: ((message: ChatMessage) => void)[] = [];
+let statusListeners: ((status: string) => void)[] = [];
+let connectionListeners: ((connected: boolean) => void)[] = [];
 
 // Helper to clean up old cache entries
 const cleanupMessageCache = () => {
@@ -18,38 +29,108 @@ const cleanupMessageCache = () => {
 };
 
 export const initializeSocket = (userId: string) => {
-  if (!socket) {
-    const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000';
-    
-    socket = io(SOCKET_URL, {
-      auth: {
-        userId,
-      },
-      transports: ['websocket', 'polling'],
-      path: '/socket.io',
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      timeout: 20000,
-    });
-
-    console.log('WebSocket initialized for user:', userId);
-    
-    socket.on('connect', () => {
-      console.log('Connected to WebSocket server');
-    });
-    
-    socket.on('disconnect', () => {
-      console.log('Disconnected from WebSocket server');
-    });
-    
-    socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
-    });
-    
-    socket.on('error', (error) => {
-      console.error('WebSocket error:', error);
-    });
+  // If socket exists and user is the same, return existing socket
+  if (socket && socket.connected && currentUserId === userId) {
+    return socket;
   }
+
+  // Disconnect existing socket if user changed
+  if (socket) {
+    socket.disconnect();
+  }
+
+  currentUserId = userId;
+  const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  
+  socket = io(SOCKET_URL, {
+    auth: {
+      userId,
+    },
+    transports: ['websocket', 'polling'],
+    path: '/socket.io',
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    timeout: 20000,
+  });
+
+  console.log('WebSocket initialized for user:', userId);
+  
+  // Connection events
+  socket.on('connect', () => {
+    console.log('Connected to WebSocket server');
+    connectionListeners.forEach(listener => listener(true));
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Disconnected from WebSocket server');
+    connectionListeners.forEach(listener => listener(false));
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.error('WebSocket connection error:', error);
+    connectionListeners.forEach(listener => listener(false));
+  });
+  
+  socket.on('error', (error) => {
+    console.error('WebSocket error:', error);
+  });
+
+  // Regular message events (your existing logic)
+  socket.on('message', (message: ChatMessage) => {
+    console.log('Received regular message:', message);
+    messageListeners.forEach(listener => listener(message));
+  });
+
+  // Typing events (your existing logic)
+  socket.on('typing', (data: { sessionId: string; typing: boolean; timestamp?: string }) => {
+    console.log('Typing status:', data);
+    typingListeners.forEach(listener => listener(data.typing));
+  });
+
+  // NEW: Streaming events
+  socket.on('message_start', (message: ChatMessage) => {
+    console.log('Stream started:', message);
+    streamStartListeners.forEach(listener => listener(message));
+  });
+
+  socket.on('message_chunk', (data: { id: string; text: string; sessionId: string; done: boolean; timestamp: string }) => {
+    console.log('Stream chunk:', data);
+    streamChunkListeners.forEach(listener => listener(data));
+  });
+
+  socket.on('message_complete', (message: ChatMessage) => {
+    console.log('Stream complete:', message);
+    streamCompleteListeners.forEach(listener => listener(message));
+  });
+
+  socket.on('status', (data: { status: string; sessionId: string; timestamp: string }) => {
+    console.log('Status update:', data);
+    statusListeners.forEach(listener => listener(data.status));
+  });
+
+  // Legacy stream events (keeping your existing handlers)
+  socket.on('stream_token', (tokenData: { messageId: string, token: string }) => {
+    console.log('Legacy stream token:', tokenData);
+    streamChunkListeners.forEach(listener => listener({
+      id: tokenData.messageId,
+      text: tokenData.token
+    }));
+  });
+
+  socket.on('stream_complete', (messageId: string) => {
+    console.log('Legacy stream complete:', messageId);
+    // Create dummy message for compatibility
+    const dummyMessage: ChatMessage = {
+      id: messageId,
+      sessionId: '',
+      userId: currentUserId || '',
+      sender: 'bot',
+      text: '',
+      timestamp: new Date(),
+      isStreaming: false
+    };
+    streamCompleteListeners.forEach(listener => listener(dummyMessage));
+  });
   
   return socket;
 };
@@ -58,8 +139,10 @@ export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();
     socket = null;
+    currentUserId = null;
     console.log('WebSocket disconnected');
   }
+  removeListeners();
 };
 
 export const joinChatSession = (sessionId: string) => {
@@ -100,41 +183,79 @@ export const sendSocketMessage = (message: string, sessionId: string, userId: st
       text: message,
       sessionId,
       userId,
-      sender: 'user',
-      timestamp: new Date().toISOString(),
     });
   }
 };
 
+// Your existing functions (keeping the same API)
 export const onMessageReceived = (callback: (message: ChatMessage) => void) => {
-  if (socket) {
-    socket.on('message', callback);
-  }
+  messageListeners.push(callback);
 };
 
 export const onTypingStatus = (callback: (isTyping: boolean) => void) => {
-  if (socket) {
-    socket.on('typing', callback);
-  }
+  typingListeners.push(callback);
 };
 
 export const onStreamToken = (callback: (tokenData: { messageId: string, token: string }) => void) => {
-  if (socket) {
-    socket.on('stream_token', callback);
-  }
+  // Map new chunk events to legacy token events for compatibility
+  streamChunkListeners.push((data: { id: string; text: string }) => {
+    callback({
+      messageId: data.id,
+      token: data.text
+    });
+  });
 };
 
 export const onStreamComplete = (callback: (messageId: string) => void) => {
-  if (socket) {
-    socket.on('stream_complete', callback);
-  }
+  streamCompleteListeners.push((message: ChatMessage) => {
+    callback(message.id);
+  });
+};
+
+// NEW: Additional streaming functions
+export const onStreamStart = (callback: (message: ChatMessage) => void) => {
+  streamStartListeners.push(callback);
+};
+
+export const onStreamChunk = (callback: (data: { id: string; text: string }) => void) => {
+  streamChunkListeners.push(callback);
+};
+
+export const onStreamCompleteMessage = (callback: (message: ChatMessage) => void) => {
+  streamCompleteListeners.push(callback);
+};
+
+export const onStatusUpdate = (callback: (status: string) => void) => {
+  statusListeners.push(callback);
+};
+
+export const onConnectionChange = (callback: (connected: boolean) => void) => {
+  connectionListeners.push(callback);
 };
 
 export const removeListeners = () => {
+  // Clear all listener arrays
+  messageListeners = [];
+  typingListeners = [];
+  streamStartListeners = [];
+  streamChunkListeners = [];
+  streamCompleteListeners = [];
+  statusListeners = [];
+  connectionListeners = [];
+
+  // Remove socket event listeners
   if (socket) {
     socket.off('message');
     socket.off('typing');
     socket.off('stream_token');
     socket.off('stream_complete');
+    socket.off('message_start');
+    socket.off('message_chunk');
+    socket.off('message_complete');
+    socket.off('status');
   }
-}; 
+};
+
+// Utility functions
+export const getSocket = (): Socket | null => socket;
+export const isConnected = (): boolean => socket?.connected || false;

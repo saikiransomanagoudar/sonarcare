@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../../hooks/useAuth';
 import ChatLayout from '../../../../components/chat/ChatLayout';
 import { getChatMessages } from '../../../../lib/api';
@@ -22,10 +22,13 @@ const SplineScene = dynamic(() => import('../../../../components/SplineScene'), 
 export default function ChatSessionPage() {
   const { currentUser } = useAuth();
   const params = useParams();
+  const searchParams = useSearchParams();
   const sessionId = params.sessionId as string;
+  const firstMessage = searchParams.get('firstMessage');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [firstMessageSent, setFirstMessageSent] = useState(false);
 
   // Function to ensure alternating user-bot pattern in messages
   const ensureAlternatingPattern = (messages: ChatMessage[]): ChatMessage[] => {
@@ -167,9 +170,15 @@ export default function ChatSessionPage() {
         const fetchedMessages = await getChatMessages(sessionId);
         
         console.log("Raw fetched messages:", fetchedMessages);
+        console.log("User messages in fetched:", fetchedMessages.filter(m => m.sender === 'user'));
+        console.log("Bot messages in fetched:", fetchedMessages.filter(m => m.sender === 'bot'));
         
         // Ensure alternating pattern
         const sortedMessages = ensureAlternatingPattern(fetchedMessages);
+        
+        console.log("Final sorted messages:", sortedMessages);
+        console.log("User messages in final:", sortedMessages.filter(m => m.sender === 'user'));
+        console.log("Bot messages in final:", sortedMessages.filter(m => m.sender === 'bot'));
         
         setMessages(sortedMessages);
       } catch (err) {
@@ -183,22 +192,51 @@ export default function ChatSessionPage() {
     loadMessages();
   }, [currentUser, sessionId]);
 
-  // Add class to body to ensure full interaction with Spline
+  // Add class to body to ensure full interaction with Spline and prevent scrolling
   useEffect(() => {
-    // Enable pointer events on the body
-    document.body.classList.add('spline-active');
+    // Prevent all scrolling on the page
+    const originalOverflow = document.body.style.overflow;
+    const originalDocumentOverflow = document.documentElement.style.overflow;
+    
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     
     return () => {
-      document.body.classList.remove('spline-active');
+      document.body.style.overflow = originalOverflow;
+      document.documentElement.style.overflow = originalDocumentOverflow;
     };
   }, []);
 
+  // Handle first message from query parameter
+  useEffect(() => {
+    if (firstMessage && !firstMessageSent && !loading && currentUser) {
+      // Wait a bit for ChatLayout to initialize, then trigger the first message
+      const timer = setTimeout(() => {
+        const event = new CustomEvent('sendFirstMessage', { 
+          detail: { message: firstMessage } 
+        });
+        window.dispatchEvent(event);
+        setFirstMessageSent(true);
+        
+        // Clean up URL parameter
+        const url = new URL(window.location.href);
+        url.searchParams.delete('firstMessage');
+        window.history.replaceState({}, '', url.toString());
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [firstMessage, firstMessageSent, loading, currentUser]);
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center relative">
-        <SplineScene />
-        <div className="z-10 bg-white bg-opacity-50 backdrop-blur-sm p-8 rounded-lg shadow-lg">
-          <div className="w-12 h-12 border-t-2 border-blue-500 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 z-0">
+          <SplineScene />
+        </div>
+        <div className="relative z-10 bg-white/20 backdrop-blur-md p-8 rounded-2xl shadow-2xl border border-white/20">
+          <div className="w-12 h-12 border-t-2 border-blue-400 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-center font-medium">Loading conversation...</p>
         </div>
       </div>
     );
@@ -206,12 +244,25 @@ export default function ChatSessionPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-12 text-center relative">
-        <SplineScene />
-        <div className="relative z-10">
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded mb-4 inline-block">
-            <p className="font-bold">Error</p>
-            <p>{error}</p>
+      <div className="fixed inset-0">
+        <div className="absolute inset-0 z-0">
+          <SplineScene />
+        </div>
+        <div className="relative z-10 flex items-center justify-center p-4 h-full">
+          <div className="bg-red-500/20 backdrop-blur-md border border-red-500/30 text-red-100 p-6 rounded-2xl shadow-2xl max-w-md mx-auto">
+            <div className="flex items-center mb-3">
+              <svg className="h-6 w-6 text-red-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="font-bold">Error Loading Chat</p>
+            </div>
+            <p className="text-red-200">{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-4 px-4 py-2 bg-red-500/30 hover:bg-red-500/40 rounded-lg transition-colors text-sm font-medium"
+            >
+              Try Again
+            </button>
           </div>
         </div>
       </div>
@@ -219,11 +270,15 @@ export default function ChatSessionPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-64px)] relative">
-      <SplineScene />
-      <div className="relative z-10 h-full flex justify-center items-start">
-        <ChatLayout initialMessages={messages} sessionId={sessionId} />
+    <div className="h-screen relative overflow-hidden pt-16">
+      <div className="absolute inset-0 z-0">
+        <SplineScene />
+      </div>
+      <div className="relative z-10 h-full flex justify-center items-start overflow-hidden">
+        <div className="w-full max-w-4xl mx-auto px-4 h-full overflow-hidden">
+          <ChatLayout initialMessages={messages} sessionId={sessionId} />
+        </div>
       </div>
     </div>
   );
-} 
+}

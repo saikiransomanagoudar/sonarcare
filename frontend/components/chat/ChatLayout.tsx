@@ -14,7 +14,13 @@ import {
   onTypingStatus, 
   onStreamToken,
   onStreamComplete,
-  removeListeners 
+  onStreamStart,
+  onStreamCompleteMessage,
+  onStatusUpdate,
+  onConnectionChange,
+  removeListeners,
+  getSocket,
+  isConnected as checkConnection
 } from '../../lib/socket';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
@@ -48,18 +54,19 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   const [isLoading, setIsLoading] = useState(false);
   const [botIsTyping, setBotIsTyping] = useState(false);
   const [sessionTitle, setSessionTitle] = useState<string>('');
-  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState<string>('');
+  const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const router = useRouter();
   
-  // Use refs to track message IDs and texts to prevent duplicates
+  // Use refs to track message IDs to prevent duplicates
   const processedMessages = useRef(new Set<string>());
-  const lastMessageTexts = useRef(new Set<string>());
   const titleGenerated = useRef<boolean>(false);
   const messagesRef = useRef<ChatMessage[]>(initialMessages);
   // Add a flag to track initial load
   const initialLoadComplete = useRef<boolean>(false);
 
-  // Add a new state for streaming responses
+  // Add a new state for streaming responses (keeping for backward compatibility)
   const [streamingMessages, setStreamingMessages] = useState<{[key: string]: string}>({});
 
   // Keep messagesRef updated with the latest messages
@@ -77,11 +84,6 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       initialMessages.forEach(msg => {
         if (msg.id) {
           processedMessages.current.add(msg.id);
-          
-          // Also add user messages to text cache for extra protection against duplicates
-          if (msg.sender === 'user') {
-            lastMessageTexts.current.add(`user-${msg.text}`);
-          }
         }
       });
       
@@ -122,216 +124,330 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       joinChatSession(sessionId);
     }
 
-    // Setup message listener
+    // Listen for first message event from new chat redirect
+    const handleFirstMessage = (event: CustomEvent) => {
+      const message = event.detail?.message;
+      if (message && typeof message === 'string') {
+        console.log('Sending first message from query parameter:', message);
+        handleSendMessage(message);
+      }
+    };
+
+    window.addEventListener('sendFirstMessage', handleFirstMessage as EventListener);
+
+    // Setup connection status listener
+    onConnectionChange((connected: boolean) => {
+      console.log('Connection status changed:', connected);
+      setIsConnected(connected);
+      if (!connected) {
+        setBotIsTyping(false);
+        setCurrentStatus('');
+        setStreamingMessage(null);
+      }
+    });
+
+    // Setup message listener - NOW HANDLES ALL MESSAGES (USER AND BOT)
     onMessageReceived((message: ChatMessage) => {
+      console.log('Received message via socket:', message);
+      
       if (!message.id) {
         // Assign ID if missing
         message.id = uuidv4();
+        console.log('Assigned new ID to message:', message.id);
       }
       
       const messageKey = `${message.id}`;
-      const messageTextKey = `${message.sender}-${message.text}`;
       
-      // Skip if we've already processed this message ID
+      // Skip if we've already processed this exact message ID
       if (processedMessages.current.has(messageKey)) {
+        console.log('Skipping duplicate message ID:', messageKey);
         return;
       }
       
-      // For user messages, also check if we recently displayed a message with the same text
-      if (message.sender === 'user' && lastMessageTexts.current.has(messageTextKey)) {
-        return;
-      }
-      
-      // Mark as processed
+      // Mark as processed immediately to prevent duplicates
       processedMessages.current.add(messageKey);
-      lastMessageTexts.current.add(messageTextKey);
+      console.log('Processing new message:', messageKey, 'Sender:', message.sender);
       
       // Limit size of tracking sets
       if (processedMessages.current.size > 200) {
         const values = Array.from(processedMessages.current);
         processedMessages.current = new Set(values.slice(-100));
       }
-      if (lastMessageTexts.current.size > 50) {
-        const values = Array.from(lastMessageTexts.current);
-        lastMessageTexts.current = new Set(values.slice(-25));
+      
+      // Clear loading state when we receive any message (user or bot)
+      if (message.sender === 'user') {
+        setIsLoading(false);
+        setCurrentStatus('');
       }
       
-      // Add the message to our list
+      // Add ALL messages here (both user and bot messages)
       setMessages(prev => {
-        // First add the new message
-        const newMessages = [...prev, message];
-        
-        // Now normalize timestamps for consistent sorting
-        const messagesWithNormalizedTimestamps = newMessages.map(msg => {
-          // Create a timestamp that's guaranteed to be a number
-          let timestamp = 0;
+        // If this is a user message, check if we have a temporary message with the same text
+        // and replace it to avoid duplicates while preserving proper server-side data
+        if (message.sender === 'user') {
+          console.log('Processing user message from server:', message);
+          const tempMessageIndex = prev.findIndex(m => 
+            m.sender === 'user' && 
+            m.text === message.text && 
+            (m as any).isTemporary === true
+          );
           
-          if (msg.timestamp) {
-            // Handle different timestamp formats
-            if (typeof msg.timestamp === 'object' && msg.timestamp.seconds) {
-              // Firestore timestamp object
-              timestamp = msg.timestamp.seconds * 1000;
-            } else if (typeof msg.timestamp === 'string') {
-              // ISO string
-              timestamp = new Date(msg.timestamp).getTime();
-            } else if (msg.timestamp instanceof Date) {
-              // Date object
-              timestamp = msg.timestamp.getTime();
-            } else if (typeof msg.timestamp === 'number') {
-              // Already a timestamp
-              timestamp = msg.timestamp;
-            }
+          if (tempMessageIndex !== -1) {
+            console.log('Replacing temporary user message with server message');
+            console.log('Temporary message:', prev[tempMessageIndex]);
+            console.log('Server message:', message);
+            const newMessages = [...prev];
+            newMessages[tempMessageIndex] = { ...message, isTemporary: false };
+            return newMessages.sort((a, b) => {
+              const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : 
+                          typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() :
+                          typeof a.timestamp === 'object' && a.timestamp?.seconds ? a.timestamp.seconds * 1000 :
+                          typeof a.timestamp === 'number' ? a.timestamp : 0;
+              
+              const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : 
+                          typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() :
+                          typeof b.timestamp === 'object' && b.timestamp?.seconds ? b.timestamp.seconds * 1000 :
+                          typeof b.timestamp === 'number' ? b.timestamp : 0;
+              
+              return timeA - timeB;
+            });
+          } else {
+            console.log('No temporary message found to replace, adding user message directly');
           }
+        }
+        
+        // Otherwise, filter by ID and add the new message
+        const filtered = prev.filter(m => m.id !== message.id);
+        const newMessages = [...filtered, message];
+        
+        console.log('Updated message list, total messages:', newMessages.length);
+        console.log('User messages count:', newMessages.filter(m => m.sender === 'user').length);
+        console.log('Bot messages count:', newMessages.filter(m => m.sender === 'bot').length);
+        
+        // Sort messages by timestamp to maintain proper order
+        return newMessages.sort((a, b) => {
+          const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : 
+                      typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() :
+                      typeof a.timestamp === 'object' && a.timestamp?.seconds ? a.timestamp.seconds * 1000 :
+                      typeof a.timestamp === 'number' ? a.timestamp : 0;
           
-          // Return a copy with numerical timestamp for sorting
-          return {
-            ...msg,
-            _sortTimestamp: timestamp
-          } as ChatMessageWithTimestamp;
+          const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : 
+                      typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() :
+                      typeof b.timestamp === 'object' && b.timestamp?.seconds ? b.timestamp.seconds * 1000 :
+                      typeof b.timestamp === 'number' ? b.timestamp : 0;
+          
+          return timeA - timeB;
+        });
+      });
+    });
+
+    // Setup status update listener
+    onStatusUpdate((status: string) => {
+      console.log('Status update received:', status);
+      setCurrentStatus(status);
+    });
+
+    // Setup typing indicator listener
+    onTypingStatus((typing: boolean) => {
+      console.log('Typing status received:', typing);
+      setBotIsTyping(typing);
+      if (!typing) {
+        setCurrentStatus('');
+      }
+    });
+
+    // Get socket instance for direct event listeners
+    const socketInstance = getSocket();
+    
+    if (socketInstance) {
+      // Add listener for message_chunk events (your backend sends these)
+      const handleMessageChunk = (data: any) => {
+        console.log('Received message_chunk:', data);
+        
+        if (!data.id || !data.text) return;
+        
+        // Update streaming message if it exists and matches
+        setStreamingMessage(prev => {
+          if (prev && prev.id === data.id) {
+            return {
+              ...prev,
+              text: data.text,
+              isStreaming: true
+            };
+          } else if (!prev) {
+            // Create new streaming message
+            return {
+              id: data.id,
+              sessionId: data.sessionId || sessionId,
+              userId: currentUser.uid,
+              sender: 'bot',
+              text: data.text,
+              timestamp: new Date(),
+              isStreaming: true
+            };
+          }
+          return prev;
         });
         
-        // Group messages by sender
-        const userMessages = messagesWithNormalizedTimestamps.filter(m => m.sender === 'user');
-        const botMessages = messagesWithNormalizedTimestamps.filter(m => m.sender === 'bot');
+        // Also update legacy streaming for fallback
+        setStreamingMessages(prev => ({
+          ...prev,
+          [data.id]: data.text
+        }));
+      };
+
+      // Add listener for message_complete events (your backend sends these)
+      const handleMessageComplete = (data: any) => {
+        console.log('Received message_complete:', data);
         
-        // Check if we need to enforce alternating pattern
-        const needsAlternating = 
-          userMessages.length > 0 && 
-          botMessages.length > 0 && 
-          (
-            // All user messages first, then all bot messages
-            userMessages.every(u => (u._sortTimestamp || 0) < (botMessages[0]._sortTimestamp || 0)) ||
-            // All bot messages first, then all user messages  
-            botMessages.every(b => (b._sortTimestamp || 0) < (userMessages[0]._sortTimestamp || 0))
-          );
+        if (!data.id) return;
         
-        if (needsAlternating) {
-          // Sort each group by timestamp
-          userMessages.sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0));
-          botMessages.sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0));
-          
-          // Determine which type comes first based on first message
-          const userFirst = 
-            userMessages.length > 0 && botMessages.length > 0 ? 
-            (userMessages[0]._sortTimestamp || 0) < (botMessages[0]._sortTimestamp || 0) : 
-            userMessages.length > 0;
-          
-          // Interleave messages
-          const interleavedMessages: ChatMessageWithTimestamp[] = [];
-          const maxLength = Math.max(userMessages.length, botMessages.length);
-          
-          if (userFirst) {
-            // User message first
-            for (let i = 0; i < maxLength; i++) {
-              if (i < userMessages.length) interleavedMessages.push(userMessages[i]);
-              if (i < botMessages.length) interleavedMessages.push(botMessages[i]);
-            }
-          } else {
-            // Bot message first
-            for (let i = 0; i < maxLength; i++) {
-              if (i < botMessages.length) interleavedMessages.push(botMessages[i]);
-              if (i < userMessages.length) interleavedMessages.push(userMessages[i]);
-            }
-          }
-          
-          // Return alternating messages (remove temp property)
-          return interleavedMessages.map(({_sortTimestamp, ...rest}) => rest);
+        // Skip if already processed
+        if (processedMessages.current.has(data.id)) {
+          return;
         }
-          
-        // Sort by the numerical timestamp
-        return messagesWithNormalizedTimestamps
-          .sort((a, b) => (a._sortTimestamp || 0) - (b._sortTimestamp || 0))
-          .map(({ _sortTimestamp, ...rest }) => rest); // Remove temp property
-      });
-      
-      // If bot message received, stop the loading state
-      if (message.sender === 'bot') {
-        setIsLoading(false);
+        
+        processedMessages.current.add(data.id);
+        
+        // Create final message object
+        const finalMessage: ChatMessage = {
+          id: data.id,
+          sessionId: data.sessionId || sessionId,
+          userId: data.userId || currentUser.uid,
+          sender: data.sender || 'bot',
+          text: data.text,
+          timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
+          metadata: data.metadata || {},
+          isStreaming: false
+        };
+        
+        // Add to messages list
+        setMessages(prev => {
+          const filtered = prev.filter(m => m.id !== finalMessage.id);
+          return [...filtered, finalMessage];
+        });
+        
+        // Clear streaming state
+        setStreamingMessage(null);
+        setStreamingMessages(prev => {
+          const { [data.id]: _, ...rest } = prev;
+          return rest;
+        });
         setBotIsTyping(false);
+        setCurrentStatus('');
+        setIsLoading(false);
         
         // Generate title from first bot response if we haven't already
-        // Using messagesRef to avoid dependency on messages array
-        const currentMessages = messagesRef.current;
-        const existingBotMessages = currentMessages.filter(m => m.sender === 'bot').length;
-        
-        if (existingBotMessages === 0 && !titleGenerated.current) {
-          // Generate a more meaningful title
-          let title = "";
-          
-          // Get topic from the message text
-          // Try to extract a meaningful phrase from the bot response
-          const text = message.text;
-          
-          console.log("[Title Generation] Processing first bot message:", text.substring(0, 100) + "...");
-          
-          // Try different strategies to extract a good title
-          if (text.includes("I'm sorry to hear you're experiencing")) {
-            // Extract the symptom
-            const symptomsMatch = text.match(/experiencing\s+(.*?)(?:\.|\s+It\s+can)/i);
-            if (symptomsMatch && symptomsMatch[1]) {
-              title = `About ${symptomsMatch[1]}`;
-              console.log("[Title Generation] Extracted symptom:", title);
-            }
-          } else if (text.toLowerCase().includes("about") && text.includes(":")) {
-            // Look for sections with headers/topics
-            const aboutMatch = text.match(/about\s+(.*?):/i);
-            if (aboutMatch && aboutMatch[1]) {
-              title = aboutMatch[1];
-              console.log("[Title Generation] Extracted topic from 'about' phrase:", title);
-            }
-          } else {
-            // Default to first sentence trimming
-            title = generateTitleFromResponse(text);
-            console.log("[Title Generation] Generated from first sentence:", title);
-          }
-          
-          // Ensure the title is not too long and starts with a capital letter
-          if (title.length > 60) title = title.substring(0, 57) + "...";
-          title = title.charAt(0).toUpperCase() + title.slice(1);
-          
-          console.log("[Title Generation] Final title:", title);
-          
-          // Update UI and backend
-          setSessionTitle(title);
+        if (!titleGenerated.current && finalMessage.sender === 'bot') {
+          const title = generateTitleFromResponse(finalMessage.text);
           
           try {
             updateSessionTitle(sessionId, title)
               .then(() => {
                 titleGenerated.current = true;
-                console.log("[Title Generation] Title updated in backend and sidebar will refresh");
-                // Force reload the sessions in the sidebar using a custom event
+                console.log('Title updated successfully');
                 window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
               })
               .catch(err => {
-                console.error("[Title Generation] Failed to update session title:", err);
+                console.error('Failed to update session title:', err);
               });
           } catch (error) {
-            console.error("[Title Generation] Error updating session title:", error);
+            console.error('Error updating session title:', error);
           }
         }
-      }
+      };
+
+      // Add event listeners
+      socketInstance.on('message_chunk', handleMessageChunk);
+      socketInstance.on('message_complete', handleMessageComplete);
+    }
+
+    // Setup new streaming message handlers
+    onStreamStart((message: ChatMessage) => {
+      console.log('Stream started:', message);
+      
+      setStreamingMessage({
+        ...message,
+        text: '',
+        isStreaming: true
+      });
+      
+      setBotIsTyping(false);
+      setCurrentStatus('');
+      setIsLoading(false);
     });
 
-    // Setup typing indicator listener
-    onTypingStatus(setBotIsTyping);
-
-    // Setup streaming message handlers
+    // Setup legacy streaming message handlers (for backward compatibility)
     onStreamToken(({ messageId, token }) => {
       console.log("Received token:", token, "for message:", messageId);
       
-      setStreamingMessages(prev => {
-        const currentText = prev[messageId] || "";
-        return {
-          ...prev,
-          [messageId]: currentText + token
-        };
+      // Update new streaming message if it exists
+      setStreamingMessage(prev => {
+        if (prev && prev.id === messageId) {
+          return {
+            ...prev,
+            text: token
+          };
+        }
+        return prev;
       });
+      
+      // Also update legacy streaming messages
+      setStreamingMessages(prev => ({
+        ...prev,
+        [messageId]: token
+      }));
+    });
+
+    onStreamCompleteMessage((finalMessage: ChatMessage) => {
+      console.log('Stream completed:', finalMessage);
+      
+      // Skip if already processed
+      if (processedMessages.current.has(finalMessage.id)) {
+        return;
+      }
+      
+      processedMessages.current.add(finalMessage.id);
+      
+      // Add the final message to the messages list
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.id !== finalMessage.id);
+        return [...filtered, {
+          ...finalMessage,
+          isStreaming: false
+        }];
+      });
+      
+      // Clear streaming message
+      setStreamingMessage(null);
+      setBotIsTyping(false);
+      setCurrentStatus('');
+      setIsLoading(false);
+      
+      // Generate title from first bot response if we haven't already
+      if (!titleGenerated.current && finalMessage.sender === 'bot') {
+        const title = generateTitleFromResponse(finalMessage.text);
+        
+        try {
+          updateSessionTitle(sessionId, title)
+            .then(() => {
+              titleGenerated.current = true;
+              console.log('Title updated successfully');
+              window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
+            })
+            .catch(err => {
+              console.error('Failed to update session title:', err);
+            });
+        } catch (error) {
+          console.error('Error updating session title:', error);
+        }
+      }
     });
 
     onStreamComplete((messageId) => {
       console.log("Stream complete for message:", messageId);
       
-      // Clear the streaming message
+      // Clear the legacy streaming message
       setStreamingMessages(prev => {
         const { [messageId]: _, ...rest } = prev;
         return rest;
@@ -343,54 +459,122 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       if (sessionId) {
         leaveChatSession(sessionId);
       }
+      
+      // Remove custom event listeners
+      const socketInstance = getSocket();
+      if (socketInstance) {
+        socketInstance.off('message_chunk');
+        socketInstance.off('message_complete');
+      }
+      
+      // Remove first message listener
+      window.removeEventListener('sendFirstMessage', handleFirstMessage as EventListener);
+      
       removeListeners();
     };
-  }, [currentUser, sessionId]); // Removed messages dependency
+  }, [currentUser, sessionId]);
+
+  // Cleanup temporary messages that weren't replaced by server messages
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      setMessages(prev => {
+        const now = Date.now();
+        const timeoutMs = 60000; // Increased to 60 seconds to be less aggressive
+        
+        const filteredMessages = prev.filter(message => {
+          // Remove temporary messages that are older than the timeout
+          if ((message as any).isTemporary) {
+            const messageTime = message.timestamp instanceof Date ? message.timestamp.getTime() : 
+                              typeof message.timestamp === 'string' ? new Date(message.timestamp).getTime() :
+                              typeof message.timestamp === 'object' && message.timestamp?.seconds ? message.timestamp.seconds * 1000 :
+                              typeof message.timestamp === 'number' ? message.timestamp : 0;
+            
+            const age = now - messageTime;
+            if (age > timeoutMs) {
+              console.log(`Removing stale temporary message after ${age/1000}s:`, message.id, message.text.substring(0, 30));
+              return false;
+            } else {
+              console.log(`Keeping temporary message (age: ${age/1000}s):`, message.id, message.text.substring(0, 30));
+            }
+          }
+          return true;
+        });
+        
+        if (filteredMessages.length !== prev.length) {
+          console.log(`Cleaned up ${prev.length - filteredMessages.length} stale temporary messages`);
+        }
+        
+        return filteredMessages.length !== prev.length ? filteredMessages : prev;
+      });
+    }, 15000); // Check every 15 seconds instead of 10
+    
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   // Handle sending message
   const handleSendMessage = async (text: string) => {
-    if (!currentUser || !text.trim()) return;
+    if (!currentUser || !text.trim() || isLoading) return;
 
     try {
+      // Set loading state immediately
+      setIsLoading(true);
+      setCurrentStatus('Sending message...');
+      
       // Create a temporary message ID
       const messageId = uuidv4();
-      const messageKey = `${messageId}`;
-      const messageTextKey = `user-${text}`;
-      
-      // Mark as processed upfront to prevent duplication
-      processedMessages.current.add(messageKey);
-      lastMessageTexts.current.add(messageTextKey);
-      
-      // Add message to UI immediately
-      setMessages(prev => [
-        ...prev, 
-        {
-          id: messageId,
-          sessionId,
-          userId: currentUser.uid,
-          sender: 'user',
-          text,
-          timestamp: new Date(),
-        }
-      ]);
-      
-      // Set loading state
-      setIsLoading(true);
-      
-      // Send the message through the socket
-      sendSocketMessage(text, sessionId, currentUser.uid);
-      
-      // Also send the message through REST API for processing
-      // Note: The bot response will come back through the socket
-      const response = await sendMessage({
-        message: text,
+      const tempUserMessage: ChatMessage = {
+        id: messageId,
         sessionId,
         userId: currentUser.uid,
-      });
+        sender: 'user',
+        text,
+        timestamp: new Date(),
+        isTemporary: true, // Flag to identify temporary messages
+      };
       
-      // If no session redirect to the new session (this handles the case of a new session)
-      if (response.sessionId !== sessionId) {
-        router.push(`/chat/${response.sessionId}`);
+      // Send via WebSocket if connected, otherwise fallback to REST
+      if (isConnected && getSocket()?.connected) {
+        console.log('Sending via WebSocket');
+        
+        // Add message to UI immediately as a temporary message
+        setMessages(prev => [...prev, tempUserMessage]);
+        
+        // Mark this message as processed to handle duplicates
+        processedMessages.current.add(messageId);
+        
+        // Send message via socket
+        sendSocketMessage(text, sessionId, currentUser.uid);
+        
+        // Set a timeout to clear loading state if no response comes back
+        setTimeout(() => {
+          setIsLoading(false);
+          setCurrentStatus('');
+        }, 10000); // 10 seconds timeout
+        
+      } else {
+        console.log('WebSocket not connected, using REST API fallback');
+        
+        // Add message to UI immediately for REST API
+        setMessages(prev => [...prev, tempUserMessage]);
+        
+        const response = await sendMessage({
+          message: text,
+          sessionId,
+          userId: currentUser.uid,
+        });
+        
+        // Add bot response if we got one
+        if (response.message) {
+          setMessages(prev => [...prev, response.message]);
+        }
+        
+        setIsLoading(false);
+        setCurrentStatus('');
+        
+        // Handle session redirect if needed
+        if (response.sessionId !== sessionId) {
+          router.push(`/chat/${response.sessionId}`);
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -410,6 +594,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       ]);
       
       setIsLoading(false);
+      setCurrentStatus('');
     }
   };
 
@@ -457,34 +642,30 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   };
 
   return (
-    <div className="w-full max-w-4xl h-full flex flex-col bg-white rounded-lg shadow-lg overflow-hidden relative">
-      {/* Chat header with actions */}
-      <div className="flex items-center justify-between bg-white border-b border-gray-200 p-3">
-        {/* Hamburger menu for sidebar toggle */}
-        <button 
-          onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          aria-label="Toggle sidebar"
-        >
-          <svg 
-            className="h-5 w-5 text-gray-700" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth="2" 
-              d="M4 6h16M4 12h16M4 18h16" 
-            />
-          </svg>
-        </button>
+    <div 
+      className="w-full max-w-4xl h-full flex flex-col overflow-hidden relative"
+      style={{ pointerEvents: 'none' }}
+    >
+      {/* Transparent header with minimal controls - NO HAMBURGER MENU */}
+      <div 
+        className="flex items-center justify-between p-3 bg-white/20 backdrop-blur-sm rounded-t-lg"
+        style={{ pointerEvents: 'auto' }}
+      >
+        <div className="flex-1"></div>
         
-        <div className="flex-1 flex justify-end">
+        <div className="flex items-center space-x-3">
+          {/* Connection status indicator */}
+          <div className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/30 backdrop-blur-sm shadow-md">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-sm text-gray-700">
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
+          
+          {/* Delete button */}
           <button
             onClick={handleDeleteSession}
-            className="p-2 text-gray-500 hover:text-red-500 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-lg bg-white/30 backdrop-blur-sm hover:bg-white/40 hover:text-red-500 transition-all shadow-md"
             title="Delete conversation"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -494,30 +675,73 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         </div>
       </div>
       
-      {/* Messages container */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 bg-gray-50">
-        <MessageList 
-          messages={messages} 
-          streamingMessages={streamingMessages}
-        />
-        {botIsTyping && Object.keys(streamingMessages).length === 0 && (
-          <div className="flex items-center space-x-2 p-2 bg-gray-100 rounded-lg w-max ml-2 mt-2">
-            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+      {/* Status indicator with transparency */}
+      {(currentStatus || botIsTyping) && (
+        <div 
+          className="mx-4 mb-2 bg-blue-50/60 backdrop-blur-sm border border-blue-200/50 rounded-lg px-4 py-2 shadow-md"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            <span className="text-sm text-blue-700">
+              {currentStatus || 'SonarCare is typing...'}
+            </span>
           </div>
-        )}
+        </div>
+      )}
+      
+      {/* Messages container - scrollable with transparent background and custom scrollbar */}
+      <div 
+        className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
+        style={{ 
+          pointerEvents: 'none'
+        }}
+      >
+        <style jsx>{`
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            border: none;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+          }
+          .custom-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+          }
+        `}</style>
+        
+        <div style={{ pointerEvents: 'auto' }}>
+          <MessageList 
+            messages={messages} 
+            streamingMessages={streamingMessages}
+            streamingMessage={streamingMessage}
+            isLoading={isLoading && !streamingMessage && !botIsTyping}
+          />
+        </div>
       </div>
       
-      {/* Message input */}
-      <div className="border-t border-gray-200 p-4 bg-white">
+      {/* Message input with semi-transparent background - NO SUGGESTIONS */}
+      <div 
+        className="bg-white/70 backdrop-blur-lg border-t border-gray-200/50 shadow-lg rounded-b-lg"
+        style={{ pointerEvents: 'auto' }}
+      >
         <MessageInput
           onSendMessage={handleSendMessage}
-          isLoading={isLoading}
+          isLoading={isLoading || !!streamingMessage}
+          disabled={!isConnected}
+          showSuggestions={false}
         />
       </div>
     </div>
   );
 };
 
-export default ChatLayout; 
+export default ChatLayout;
