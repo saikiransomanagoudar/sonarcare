@@ -12,15 +12,29 @@ interface MessageListProps {
   isLoading?: boolean;
   streamingMessages?: {[key: string]: string};
   streamingMessage?: ChatMessage | null;
+  isTyping?: boolean;
 }
 
 const MessageList: React.FC<MessageListProps> = ({ 
   messages, 
   isLoading = false,
   streamingMessages = {},
-  streamingMessage = null
+  streamingMessage = null,
+  isTyping = false
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Debug logging for loading states
+  React.useEffect(() => {
+    const shouldShowLoading = isLoading || (isTyping && !streamingMessage && Object.keys(streamingMessages).length === 0);
+    console.log('MessageList loading states:', {
+      isLoading,
+      isTyping,
+      hasStreamingMessage: !!streamingMessage,
+      streamingMessagesCount: Object.keys(streamingMessages).length,
+      shouldShowLoading
+    });
+  }, [isLoading, isTyping, streamingMessage, streamingMessages]);
 
   // Auto-scroll to bottom on new messages or streaming updates
   useEffect(() => {
@@ -131,10 +145,10 @@ const MessageList: React.FC<MessageListProps> = ({
   }, [messages]);
 
   // If no messages, show welcome message with transparency
-  if (sortedMessages.length === 0 && !isLoading && Object.keys(streamingMessages).length === 0 && !streamingMessage) {
+  if (sortedMessages.length === 0 && !isLoading && !isTyping && Object.keys(streamingMessages).length === 0 && !streamingMessage) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10">
-        <div className="max-w-lg bg-white/80 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-200/50">
+      <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10" style={{ pointerEvents: 'none' }}>
+        <div className="max-w-lg bg-white/80 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-200/50" style={{ pointerEvents: 'auto' }}>
           <div className="w-20 h-20 rounded-full bg-blue-100/90 backdrop-blur-sm flex items-center justify-center mx-auto mb-6 shadow-lg">
             <svg 
               className="h-10 w-10 text-blue-500" 
@@ -178,43 +192,59 @@ const MessageList: React.FC<MessageListProps> = ({
   });
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" style={{ pointerEvents: 'none' }}>
       {/* Messages container - fully scrollable */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
-        <div className="space-y-4 pb-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4" style={{ pointerEvents: 'auto' }}>
+        <div className="space-y-4 pb-4" style={{ pointerEvents: 'none' }}>
           {sortedMessages.map((message) => (
-            <ChatBubble key={message.id} message={message} />
+            <div key={message.id} style={{ pointerEvents: 'auto' }}>
+              <ChatBubble message={message} />
+            </div>
           ))}
           
           {/* New streaming message (priority over legacy streamingMessages) */}
           {streamingMessage && (
-            <ChatBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage} />
+            <div style={{ pointerEvents: 'auto' }}>
+              <ChatBubble key={`streaming-${streamingMessage.id}`} message={streamingMessage} />
+            </div>
           )}
           
           {/* Legacy streaming messages (keeping for compatibility) */}
-          {!streamingMessage && streamingBubbles}
+          {!streamingMessage && streamingBubbles.map((bubble, index) => (
+            <div key={index} style={{ pointerEvents: 'auto' }}>
+              {bubble}
+            </div>
+          ))}
           
-          {/* Loading indicator */}
-          {isLoading && !streamingMessage && Object.keys(streamingMessages).length === 0 && (
-            <div className="flex items-start space-x-3 mb-4">
+          {/* Loading indicator - show when loading OR when typing but no streaming content yet */}
+          {(isLoading || (isTyping && !streamingMessage && Object.keys(streamingMessages).length === 0)) && (
+            <div className="flex items-start space-x-3 mb-4" style={{ pointerEvents: 'auto' }}>
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 rounded-full bg-blue-100/90 backdrop-blur-sm flex items-center justify-center shadow-md">
-                  <div className="flex space-x-0.5">
-                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
-                    <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
-                  </div>
+                  <svg 
+                    className="h-5 w-5 text-blue-500" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2"
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                    <line x1="9" y1="9" x2="9.01" y2="9" />
+                    <line x1="15" y1="9" x2="15.01" y2="9" />
+                  </svg>
                 </div>
               </div>
               
               <div className="bg-white/80 backdrop-blur-sm shadow-md border border-gray-100 text-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[70%]">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center justify-center">
                   <div className="flex space-x-1">
-                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1.2s' }}></div>
+                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '200ms', animationDuration: '1.2s' }}></div>
+                    <div className="h-2 w-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '400ms', animationDuration: '1.2s' }}></div>
                   </div>
-                  <span className="text-sm text-gray-500">SonarCare is thinking...</span>
                 </div>
               </div>
             </div>

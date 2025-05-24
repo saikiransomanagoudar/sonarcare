@@ -119,30 +119,88 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
 
     const socket = initializeSocket(currentUser.uid);
 
-    // Join the chat session room
+    // Join the chat session room with retry logic
     if (sessionId) {
-      joinChatSession(sessionId);
+      const joinWithRetry = async (attempts = 0) => {
+        try {
+          if (checkConnection()) {
+            joinChatSession(sessionId, currentUser.uid);
+            console.log(`Joined session ${sessionId} on attempt ${attempts + 1}`);
+          } else if (attempts < 5) {
+            console.log(`Connection not ready, retrying join in ${1000 * (attempts + 1)}ms...`);
+            setTimeout(() => joinWithRetry(attempts + 1), 1000 * (attempts + 1));
+          }
+        } catch (error) {
+          console.error(`Error joining session on attempt ${attempts + 1}:`, error);
+          if (attempts < 5) {
+            setTimeout(() => joinWithRetry(attempts + 1), 1000 * (attempts + 1));
+          }
+        }
+      };
+
+      // Start joining immediately, but with retries if needed
+      joinWithRetry();
     }
 
-    // Listen for first message event from new chat redirect
+    // Listen for first message event from new chat redirect with better error handling
     const handleFirstMessage = (event: CustomEvent) => {
       const message = event.detail?.message;
       if (message && typeof message === 'string') {
-        console.log('Sending first message from query parameter:', message);
-        handleSendMessage(message);
+        console.log('Received first message event:', message);
+        
+        // Ensure connection is stable before sending first message
+        const sendFirstMessageWhenReady = () => {
+          if (checkConnection()) {
+            console.log('Connection stable, sending first message:', message);
+            handleSendMessage(message, true);
+          } else {
+            console.log('Connection not ready for first message, waiting...');
+            // Wait for connection to be ready with multiple attempts
+            let attempts = 0;
+            const maxAttempts = 10;
+            const checkInterval = setInterval(() => {
+              attempts++;
+              if (checkConnection()) {
+                console.log(`Connection ready after ${attempts} attempts, sending first message:`, message);
+                clearInterval(checkInterval);
+                handleSendMessage(message, true);
+              } else if (attempts >= maxAttempts) {
+                console.error('Connection still not ready after maximum attempts, falling back to REST API');
+                clearInterval(checkInterval);
+                // Fallback to REST API if WebSocket isn't working
+                handleSendMessage(message, true);
+              } else {
+                console.log(`Connection check attempt ${attempts}/${maxAttempts}...`);
+              }
+            }, 500); // Check every 500ms
+          }
+        };
+
+        // Add a small delay to ensure everything is initialized
+        setTimeout(sendFirstMessageWhenReady, 100);
       }
     };
 
     window.addEventListener('sendFirstMessage', handleFirstMessage as EventListener);
 
-    // Setup connection status listener
+    // Setup connection status listener with better logging
     onConnectionChange((connected: boolean) => {
-      console.log('Connection status changed:', connected);
+      console.log('WebSocket connection status changed:', connected, 'Session:', sessionId);
       setIsConnected(connected);
       if (!connected) {
         setBotIsTyping(false);
         setCurrentStatus('');
         setStreamingMessage(null);
+        console.warn('WebSocket disconnected - clearing states');
+      } else {
+        console.log('WebSocket connected successfully');
+        // Re-join session if we reconnect
+        if (sessionId) {
+          setTimeout(() => {
+            joinChatSession(sessionId, currentUser.uid);
+            console.log('Re-joined session after reconnection:', sessionId);
+          }, 500);
+        }
       }
     });
 
@@ -260,6 +318,15 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
     const socketInstance = getSocket();
     
     if (socketInstance) {
+      // Add listener for join errors
+      const handleError = (data: any) => {
+        console.error('WebSocket error received:', data);
+        if (data.sessionId === sessionId) {
+          console.error(`Session-specific error for ${sessionId}:`, data.message);
+          setCurrentStatus(`Error: ${data.message}`);
+        }
+      };
+
       // Add listener for message_chunk events (your backend sends these)
       const handleMessageChunk = (data: any) => {
         console.log('Received message_chunk:', data);
@@ -358,6 +425,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       };
 
       // Add event listeners
+      socketInstance.on('join_error', handleError);
       socketInstance.on('message_chunk', handleMessageChunk);
       socketInstance.on('message_complete', handleMessageComplete);
     }
@@ -463,6 +531,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       // Remove custom event listeners
       const socketInstance = getSocket();
       if (socketInstance) {
+        socketInstance.off('join_error');
         socketInstance.off('message_chunk');
         socketInstance.off('message_complete');
       }
@@ -512,13 +581,15 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   }, []);
 
   // Handle sending message
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, isFirstMessage: boolean = false) => {
     if (!currentUser || !text.trim() || isLoading) return;
 
     try {
-      // Set loading state immediately
-      setIsLoading(true);
-      setCurrentStatus('Sending message...');
+      // Set loading state immediately (but not for first message)
+      if (!isFirstMessage) {
+        setIsLoading(true);
+        setCurrentStatus('Sending message...');
+      }
       
       // Create a temporary message ID
       const messageId = uuidv4();
@@ -545,11 +616,13 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         // Send message via socket
         sendSocketMessage(text, sessionId, currentUser.uid);
         
-        // Set a timeout to clear loading state if no response comes back
-        setTimeout(() => {
-          setIsLoading(false);
-          setCurrentStatus('');
-        }, 10000); // 10 seconds timeout
+        // Set a timeout to clear loading state if no response comes back (but not for first message)
+        if (!isFirstMessage) {
+          setTimeout(() => {
+            setIsLoading(false);
+            setCurrentStatus('');
+          }, 10000); // 10 seconds timeout
+        }
         
       } else {
         console.log('WebSocket not connected, using REST API fallback');
@@ -568,8 +641,10 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
           setMessages(prev => [...prev, response.message]);
         }
         
-        setIsLoading(false);
-        setCurrentStatus('');
+        if (!isFirstMessage) {
+          setIsLoading(false);
+          setCurrentStatus('');
+        }
         
         // Handle session redirect if needed
         if (response.sessionId !== sessionId) {
@@ -593,8 +668,10 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         },
       ]);
       
-      setIsLoading(false);
-      setCurrentStatus('');
+      if (!isFirstMessage) {
+        setIsLoading(false);
+        setCurrentStatus('');
+      }
     }
   };
 
@@ -651,9 +728,9 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         className="flex items-center justify-between p-3 bg-white/20 backdrop-blur-sm rounded-t-lg"
         style={{ pointerEvents: 'auto' }}
       >
-        <div className="flex-1"></div>
+        <div className="flex-1" style={{ pointerEvents: 'none' }}></div>
         
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3" style={{ pointerEvents: 'auto' }}>
           {/* Connection status indicator */}
           <div className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/30 backdrop-blur-sm shadow-md">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
@@ -690,7 +767,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         </div>
       )}
       
-      {/* Messages container - scrollable with transparent background and custom scrollbar */}
+      {/* Messages container - scrollable with transparent background and allow pointer events to pass through empty areas */}
       <div 
         className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
         style={{ 
@@ -724,6 +801,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
             streamingMessages={streamingMessages}
             streamingMessage={streamingMessage}
             isLoading={isLoading && !streamingMessage && !botIsTyping}
+            isTyping={botIsTyping}
           />
         </div>
       </div>

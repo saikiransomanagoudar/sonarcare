@@ -210,8 +210,9 @@ export default function ChatSessionPage() {
   // Handle first message from query parameter
   useEffect(() => {
     if (firstMessage && !firstMessageSent && !loading && currentUser) {
-      // Wait a bit for ChatLayout to initialize, then trigger the first message
+      // Wait longer for ChatLayout to initialize and WebSocket to stabilize, then trigger the first message
       const timer = setTimeout(() => {
+        console.log('Dispatching first message event after delay:', firstMessage);
         const event = new CustomEvent('sendFirstMessage', { 
           detail: { message: firstMessage } 
         });
@@ -222,7 +223,7 @@ export default function ChatSessionPage() {
         const url = new URL(window.location.href);
         url.searchParams.delete('firstMessage');
         window.history.replaceState({}, '', url.toString());
-      }, 500);
+      }, 1500); // Increased from 500ms to 1500ms to allow WebSocket to stabilize
 
       return () => clearTimeout(timer);
     }

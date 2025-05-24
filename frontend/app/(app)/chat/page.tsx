@@ -43,6 +43,9 @@ export default function NewChatPage() {
       // Create a new chat session first
       const session = await createChatSession(currentUser.uid);
 
+      // Add a small delay to ensure session is fully created in backend
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       // Instead of sending via REST API and redirecting, 
       // redirect to the session immediately and let the WebSocket handle the message
       router.push(`/chat/${session.id}?firstMessage=${encodeURIComponent(text)}`);

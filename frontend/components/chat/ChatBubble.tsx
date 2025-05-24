@@ -21,28 +21,20 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
       {!isUser && (
         <div className="flex-shrink-0 mr-3">
           <div className="w-8 h-8 rounded-full bg-blue-100 bg-opacity-90 backdrop-blur-sm flex items-center justify-center shadow-md">
-            {isStreaming ? (
-              <div className="flex space-x-0.5">
-                <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
-                <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
-              </div>
-            ) : (
-              <svg 
-                className="h-5 w-5 text-blue-500" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2"
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                <line x1="9" y1="9" x2="9.01" y2="9" />
-                <line x1="15" y1="9" x2="15.01" y2="9" />
-              </svg>
-            )}
+            <svg 
+              className="h-5 w-5 text-blue-500" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2"
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+              <line x1="9" y1="9" x2="9.01" y2="9" />
+              <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
           </div>
         </div>
       )}
@@ -113,19 +105,6 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
                   <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                 </svg>
                 <span>Powered by: {message.metadata.sonar_model_used}</span>
-              </div>
-            )}
-
-            {/* Display intent and processing time */}
-            {message.metadata?.intent && !isStreaming && !message.isError && (
-              <div className="text-xs text-gray-400 mt-2 flex items-center space-x-1">
-                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                </svg>
-                <span>Intent: {message.metadata.intent.replace('_', ' ')}</span>
-                {message.metadata.processing_time_seconds && (
-                  <span>• {message.metadata.processing_time_seconds.toFixed(1)}s</span>
-                )}
               </div>
             )}
           </div>

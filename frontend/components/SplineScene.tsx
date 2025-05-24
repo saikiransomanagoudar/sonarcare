@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useRef } from "react";
 
+// Update this version number whenever you update your Spline design
+const SPLINE_VERSION = "1.1";
+
 export default function SplineScene() {
   const [SplineComponent, setSplineComponent] = useState<any>(null);
   const [splineApp, setSplineApp] = useState<any>(null);
@@ -9,6 +12,7 @@ export default function SplineScene() {
   const [debugMode, setDebugMode] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [objectNames, setObjectNames] = useState<string[]>([]);
+  const [sceneKey, setSceneKey] = useState(0);
 
   // Reference to track which events exist in the scene
   const eventsRef = useRef<{ lookAt: boolean; events: string[] }>({
@@ -196,7 +200,7 @@ export default function SplineScene() {
         style={{ pointerEvents: "auto", clipPath: "inset(64px 0 0 0)" }}
       >
         <SplineComponent
-          scene="https://prod.spline.design/al3F-8TlaFrhgSVg/scene.splinecode"
+          scene={`https://prod.spline.design/al3F-8TlaFrhgSVg/scene.splinecode?v=${SPLINE_VERSION}`}
           onLoad={onLoad}
         />
       </div>

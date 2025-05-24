@@ -51,7 +51,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const isDisabled = isLoading || disabled || !message.trim();
 
   return (
-    <div className="p-4">
+    <div className="p-1">
       <form onSubmit={handleSubmit}>
         <div className="relative">
           <textarea
@@ -117,9 +117,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
           </button>
         </div>
       </form>
-      
-      {/* Quick suggestion buttons - only show when enabled (for new chats) */}
-      {showSuggestions && !isLoading && !disabled && message.length === 0 && (
+
+      {/* {showSuggestions && !isLoading && !disabled && message.length === 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {[
             "I have a headache",
@@ -144,7 +143,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             </button>
           ))}
         </div>
-      )}
+      )} */}
     </div>
   );
 };

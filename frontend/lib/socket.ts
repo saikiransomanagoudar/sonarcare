@@ -31,16 +31,20 @@ const cleanupMessageCache = () => {
 export const initializeSocket = (userId: string) => {
   // If socket exists and user is the same, return existing socket
   if (socket && socket.connected && currentUserId === userId) {
+    console.log('Reusing existing WebSocket connection for user:', userId);
     return socket;
   }
 
   // Disconnect existing socket if user changed
   if (socket) {
+    console.log('Disconnecting existing socket for user change');
     socket.disconnect();
   }
 
   currentUserId = userId;
   const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  
+  console.log('Initializing new WebSocket connection to:', SOCKET_URL, 'for user:', userId);
   
   socket = io(SOCKET_URL, {
     auth: {
@@ -48,31 +52,45 @@ export const initializeSocket = (userId: string) => {
     },
     transports: ['websocket', 'polling'],
     path: '/socket.io',
-    reconnectionAttempts: 5,
+    reconnection: true,
+    reconnectionAttempts: 15, // Increased from 10
     reconnectionDelay: 1000,
-    timeout: 20000,
+    reconnectionDelayMax: 5000,
+    randomizationFactor: 0.5,
+    timeout: 30000, // Increased from 20000
+    forceNew: false,
+    autoConnect: true,
   });
 
   console.log('WebSocket initialized for user:', userId);
   
   // Connection events
   socket.on('connect', () => {
-    console.log('Connected to WebSocket server');
+    console.log('Connected to WebSocket server with socket ID:', socket?.id);
     connectionListeners.forEach(listener => listener(true));
   });
   
-  socket.on('disconnect', () => {
-    console.log('Disconnected from WebSocket server');
+  socket.on('disconnect', (reason) => {
+    console.log('Disconnected from WebSocket server. Reason:', reason);
     connectionListeners.forEach(listener => listener(false));
   });
   
   socket.on('connect_error', (error) => {
-    console.error('WebSocket connection error:', error);
+    console.error('WebSocket connection error:', error.message || error);
     connectionListeners.forEach(listener => listener(false));
   });
   
   socket.on('error', (error) => {
     console.error('WebSocket error:', error);
+  });
+
+  // Listen for successful join confirmation
+  socket.on('joined', (data) => {
+    console.log('Successfully joined session:', data.sessionId);
+  });
+
+  socket.on('error', (data) => {
+    console.error('WebSocket server error:', data);
   });
 
   // Regular message events (your existing logic)
@@ -145,10 +163,29 @@ export const disconnectSocket = () => {
   removeListeners();
 };
 
-export const joinChatSession = (sessionId: string) => {
-  if (socket) {
-    socket.emit('join', { sessionId });
-    console.log('Joined chat session:', sessionId);
+export const joinChatSession = (sessionId: string, userId?: string) => {
+  if (!socket) {
+    console.error('Cannot join session: Socket not initialized');
+    return false;
+  }
+  
+  if (!socket.connected) {
+    console.warn(`Cannot join session ${sessionId}: Socket not connected`);
+    return false;
+  }
+  
+  try {
+    const joinData: any = { sessionId };
+    if (userId) {
+      joinData.userId = userId;
+    }
+    
+    socket.emit('join', joinData);
+    console.log('Sent join request for session:', sessionId, userId ? `(user: ${userId})` : '');
+    return true;
+  } catch (error) {
+    console.error('Error sending join request:', error);
+    return false;
   }
 };
 
@@ -160,16 +197,26 @@ export const leaveChatSession = (sessionId: string) => {
 };
 
 export const sendSocketMessage = (message: string, sessionId: string, userId: string) => {
-  if (socket) {
-    // Create a unique key for this message
-    const messageKey = `${userId}-${sessionId}-${message}`;
-    
-    // Check if we've recently sent this exact message
-    if (sentMessagesCache.has(messageKey)) {
-      console.log('Prevented duplicate message send:', message.substring(0, 20) + '...');
-      return;
-    }
-    
+  if (!socket) {
+    console.error('Cannot send message: Socket not initialized');
+    return false;
+  }
+  
+  if (!socket.connected) {
+    console.error('Cannot send message: Socket not connected');
+    return false;
+  }
+  
+  // Create a unique key for this message
+  const messageKey = `${userId}-${sessionId}-${message}`;
+  
+  // Check if we've recently sent this exact message
+  if (sentMessagesCache.has(messageKey)) {
+    console.log('Prevented duplicate message send:', message.substring(0, 20) + '...');
+    return false;
+  }
+  
+  try {
     // Add to cache with current timestamp
     sentMessagesCache.set(messageKey, Date.now());
     
@@ -184,6 +231,14 @@ export const sendSocketMessage = (message: string, sessionId: string, userId: st
       sessionId,
       userId,
     });
+    
+    console.log('Sent message successfully:', message.substring(0, 50));
+    return true;
+  } catch (error) {
+    console.error('Error sending message:', error);
+    // Remove from cache if send failed
+    sentMessagesCache.delete(messageKey);
+    return false;
   }
 };
 
