@@ -135,19 +135,66 @@ async def disconnect(sid):
 
 @sio.event
 async def join(sid, data):
-    """Handle joining a chat session room."""
-    if "sessionId" in data:
-        session_id = data["sessionId"]
-        logger.info(f"Client {sid} joining room: {session_id}")
+    """Handle joining a chat session room with validation."""
+    if "sessionId" not in data:
+        logger.warning(f"Client {sid} join request missing sessionId")
+        await sio.emit("error", {"message": "sessionId required"}, room=sid)
+        return
+    
+    session_id = data["sessionId"]
+    user_id = data.get("userId")  # Get userId if provided for validation
+    
+    logger.info(f"Client {sid} requesting to join room: {session_id} (user: {user_id})")
+    
+    # Validate session exists if we have a user ID
+    if user_id:
+        try:
+            from app.services.firebase_service import get_session
+            session = await get_session(session_id)
+            
+            if not session:
+                logger.warning(f"Session {session_id} not found for user {user_id}")
+                await sio.emit("error", {
+                    "message": f"Session {session_id} not found",
+                    "sessionId": session_id
+                }, room=sid)
+                return
+            
+            # Check if user has access to this session
+            if session.get("userId") != user_id:
+                logger.warning(f"User {user_id} does not have access to session {session_id}")
+                await sio.emit("error", {
+                    "message": "Access denied to this session",
+                    "sessionId": session_id
+                }, room=sid)
+                return
+                
+            logger.info(f"Session {session_id} validated for user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error validating session {session_id} for user {user_id}: {str(e)}")
+            # Continue anyway - session might be new or validation might have issues
+            logger.info(f"Continuing with join despite validation error (new session?)")
+    
+    try:
+        # Join the room
         await sio.enter_room(sid, session_id)
+        
+        # Send confirmation
         await sio.emit("joined", {
             "status": "joined", 
             "sessionId": session_id,
             "timestamp": datetime.now().isoformat()
         }, room=sid)
-    else:
-        logger.warning(f"Client {sid} join request missing sessionId")
-        await sio.emit("error", {"message": "sessionId required"}, room=sid)
+        
+        logger.info(f"Client {sid} successfully joined room: {session_id}")
+        
+    except Exception as e:
+        logger.error(f"Error joining room {session_id} for client {sid}: {str(e)}")
+        await sio.emit("error", {
+            "message": f"Failed to join session: {str(e)}",
+            "sessionId": session_id
+        }, room=sid)
 
 @sio.event
 async def leave(sid, data):
