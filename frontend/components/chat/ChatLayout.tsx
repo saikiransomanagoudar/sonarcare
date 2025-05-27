@@ -213,9 +213,28 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       if (message && typeof message === 'string') {
         console.log('Received first message event:', message);
         
-        // Ensure connection is stable before sending first message
+        // Immediately show the user message (like ChatGPT/Claude)
+        const userMessage: ChatMessage = {
+          id: uuidv4(),
+          sessionId,
+          userId: currentUser.uid,
+          sender: 'user',
+          text: message,
+          timestamp: new Date(),
+          isTemporary: true, // Ensure the first message is also marked as temporary
+        };
+        
+        // Add user message immediately to the UI
+        setMessages(prev => [...prev, userMessage]);
+        
+        // Set loading state to show bot is processing
+        setIsLoading(true);
+        setBotIsTyping(true);
+        setCurrentStatus('Connecting...');
+        
+        // Handle the actual message sending asynchronously
         const sendFirstMessageWhenReady = async () => {
-          console.log('Checking connection for first message:', message);
+          console.log('Processing first message in background:', message);
           
           try {
             // Ensure we have a solid connection
@@ -227,6 +246,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
             
             if ((connectionReady || socketConnected) && sessionJoined) {
               console.log('Connection and session ready, sending first message:', message);
+              setCurrentStatus('Thinking...');
               handleSendMessage(message, true);
               return;
             }
@@ -249,10 +269,12 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
               if (connectionReady && sessionJoined) {
                 console.log(`Connection and session ready after ${attempts} attempts, sending first message:`, message);
                 clearInterval(checkInterval);
+                setCurrentStatus('Thinking...');
                 handleSendMessage(message, true);
               } else if (attempts >= maxAttempts) {
                 console.error('Connection/session still not ready after maximum attempts, falling back to REST API');
                 clearInterval(checkInterval);
+                setCurrentStatus('Thinking...');
                 // Fallback to REST API if WebSocket isn't working
                 handleSendMessage(message, true);
               }
@@ -260,6 +282,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
             
           } catch (error) {
             console.error('Error ensuring connection for first message:', error);
+            setCurrentStatus('Thinking...');
             // Fallback to REST API
             handleSendMessage(message, true);
           }
@@ -717,18 +740,6 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         setCurrentStatus('Sending message...');
       }
       
-      // Create a temporary message ID
-      const messageId = uuidv4();
-      const tempUserMessage: ChatMessage = {
-        id: messageId,
-        sessionId,
-        userId: currentUser.uid,
-        sender: 'user',
-        text,
-        timestamp: new Date(),
-        isTemporary: true, // Flag to identify temporary messages
-      };
-      
       // Send via WebSocket if connected, otherwise fallback to REST
       const socket = getSocket();
       const socketReady = socket?.connected || false;
@@ -737,11 +748,25 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       if (canUseWebSocket) {
         console.log('Sending via WebSocket - socket.connected:', socketReady, 'isConnected:', isConnected);
         
-        // Add message to UI immediately as a temporary message
-        setMessages(prev => [...prev, tempUserMessage]);
-        
-        // Mark this message as processed to handle duplicates
-        processedMessages.current.add(messageId);
+        // For non-first messages, create and add temporary user message
+        if (!isFirstMessage) {
+          const messageId = uuidv4();
+          const tempUserMessage: ChatMessage = {
+            id: messageId,
+            sessionId,
+            userId: currentUser.uid,
+            sender: 'user',
+            text,
+            timestamp: new Date(),
+            isTemporary: true, // Flag to identify temporary messages
+          };
+          
+          // Add message to UI immediately as a temporary message
+          setMessages(prev => [...prev, tempUserMessage]);
+          
+          // Mark this message as processed to handle duplicates
+          processedMessages.current.add(messageId);
+        }
         
         // Send message via socket
         sendSocketMessage(text, sessionId, currentUser.uid);
@@ -757,8 +782,22 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       } else {
         console.log('WebSocket not connected, using REST API fallback');
         
-        // Add message to UI immediately for REST API
-        setMessages(prev => [...prev, tempUserMessage]);
+        // For non-first messages, create and add temporary user message
+        if (!isFirstMessage) {
+          const messageId = uuidv4();
+          const tempUserMessage: ChatMessage = {
+            id: messageId,
+            sessionId,
+            userId: currentUser.uid,
+            sender: 'user',
+            text,
+            timestamp: new Date(),
+            isTemporary: true, // Flag to identify temporary messages
+          };
+          
+          // Add message to UI immediately for REST API
+          setMessages(prev => [...prev, tempUserMessage]);
+        }
         
         const response = await sendMessage({
           message: text,

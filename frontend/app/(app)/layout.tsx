@@ -67,7 +67,7 @@ export default function AppLayout({
   // Load chat sessions for sidebar
   useEffect(() => {
     loadSessions();
-  }, [currentUser, pathname]);
+  }, [currentUser]);
 
   // Listen for session title updates
   useEffect(() => {
@@ -78,10 +78,29 @@ export default function AppLayout({
       }
     };
 
+    // Listen for new session creation to add it optimistically
+    const handleNewSessionCreated = (event: CustomEvent) => {
+      const { sessionId, title } = event.detail;
+      if (sessionId && currentUser?.uid) {
+        // Add the new session optimistically to the list
+        const newSession: ChatSession = {
+          id: sessionId,
+          title: title || 'New Conversation',
+          lastActivityAt: new Date().toISOString(),
+          userId: currentUser.uid,
+          createdAt: new Date().toISOString()
+        };
+        
+        setSessions(prev => [newSession, ...prev]);
+      }
+    };
+
     window.addEventListener('sessionTitleUpdated', handleSessionTitleUpdate);
+    window.addEventListener('newSessionCreated', handleNewSessionCreated as EventListener);
     
     return () => {
       window.removeEventListener('sessionTitleUpdated', handleSessionTitleUpdate);
+      window.removeEventListener('newSessionCreated', handleNewSessionCreated as EventListener);
     };
   }, [currentUser]);
 
@@ -121,8 +140,14 @@ export default function AppLayout({
 
   // Handle creating a new chat
   const handleNewChat = () => {
-    // Simply redirect to the New Chat page
-    router.push('/chat');
+    // If we're already on the new chat page, dispatch a reset event
+    if (pathname === '/chat') {
+      // Dispatch a custom event to reset the new chat page state
+      window.dispatchEvent(new CustomEvent('resetNewChat'));
+    } else {
+      // Navigate to the New Chat page
+      router.push('/chat');
+    }
     // Close the sidebar on mobile
     setSidebarOpen(false);
   };
@@ -193,6 +218,29 @@ export default function AppLayout({
 
   return (
     <div className="flex flex-col h-screen relative">
+      {/* Custom scrollbar styles */}
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(243, 244, 246, 0.5);
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(156, 163, 175, 0.6);
+          border-radius: 3px;
+          border: none;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(107, 114, 128, 0.8);
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(156, 163, 175, 0.6) rgba(243, 244, 246, 0.5);
+        }
+      `}</style>
+      
       {/* Spline Background */}
       <div className="absolute inset-0 z-0">
         <SplineScene />
@@ -252,9 +300,9 @@ export default function AppLayout({
         `}>
           
           {/* Sidebar content - conditionally show full content based on desktopSidebarOpen */}
-          <div className={`relative flex-1 flex flex-col ${!desktopSidebarOpen && 'md:hidden'}`}>       
+          <div className={`relative flex-1 flex flex-col min-h-0 overflow-hidden ${!desktopSidebarOpen && 'md:hidden'}`}>       
             {/* Mobile close button */}
-            <div className="md:hidden flex justify-between items-center px-4 py-3 border-b border-gray-200">
+            <div className="md:hidden flex justify-between items-center px-4 py-3 border-b border-gray-200 flex-shrink-0">
               <h2 className="text-lg font-semibold text-gray-800">Menu</h2>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -267,10 +315,11 @@ export default function AppLayout({
               </button>
             </div>
             
-            <div className="px-4 py-4 flex-1 flex flex-col overflow-hidden">
+            {/* This is the main container for the New Chat button and scrollable history */}
+            <div className="px-4 py-4 flex-1 flex flex-col min-h-0"> {/* Ensures this container takes available space and enables scrolling for its children */}
               <button
                 onClick={handleNewChat}
-                className="cursor-pointer w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center mb-6"
+                className="cursor-pointer w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center mb-6 flex-shrink-0"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -278,51 +327,52 @@ export default function AppLayout({
                 New Chat
               </button>
               
-                              <div className="flex-1 min-h-0 overflow-hidden">
-                <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-3 px-2">Recent Conversations</h3>
-                {loadingSessions ? (
-                  <div className="flex justify-center py-4">
-                    <div className="w-6 h-6 border-t-2 border-blue-500 rounded-full animate-spin"></div>
-                  </div>
-                ) : sessions.length === 0 ? (
-                  <p className="text-center text-sm text-gray-500 py-4">No conversations yet</p>
-                ) : (
-                  <ul className="space-y-1 overflow-y-auto h-full pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                    {sessions.map((session) => (
-                      <li key={session.id}>
-                        <div className="relative group">
-                                                      <Link 
-                            href={`/chat/${session.id}`}
-                            className={`block px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors ${
-                              pathname === `/chat/${session.id}` ? 'bg-blue-50 border-l-4 border-blue-500 pl-2' : ''
-                            }`}
-                            onClick={() => setSidebarOpen(false)}
-                          >
-                            <div className="flex items-center">
-                              <svg className="w-4 h-4 text-gray-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                              </svg>
-                              <p className="font-medium text-gray-700 truncate pr-8">{session.title || 'Untitled Conversation'}</p>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1 pl-6">
-                              {new Date(session.lastActivityAt).toLocaleDateString()} · {new Date(session.lastActivityAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </p>
-                          </Link>
-                          <button
-                            onClick={(e) => handleDeleteSession(session.id, e)}
-                            className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Delete conversation"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-3 px-2 flex-shrink-0">Recent Conversations</h3>
+              
+              {/* Conditional rendering for loading/empty/sessions list */}
+              {loadingSessions ? (
+                <div className="flex justify-center py-4 flex-shrink-0">
+                  <div className="w-6 h-6 border-t-2 border-blue-500 rounded-full animate-spin"></div>
+                </div>
+              ) : sessions.length === 0 ? (
+                <p className="text-center text-sm text-gray-500 py-4 flex-shrink-0">No conversations yet</p>
+              ) : (
+                // The UL is now the direct flex-growing and scrollable child within the container above
+                <ul className="flex-1 space-y-1 overflow-y-auto pr-2 custom-scrollbar min-h-0"> {/* Added min-h-0 here as well for safety */}
+                  {sessions.map((session) => (
+                    <li key={session.id}>
+                      <div className="relative group">
+                        <Link 
+                          href={`/chat/${session.id}`}
+                          className={`block px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors ${
+                            pathname === `/chat/${session.id}` ? 'bg-blue-50 border-l-4 border-blue-500 pl-2' : ''
+                          }`}
+                          onClick={() => setSidebarOpen(false)}
+                        >
+                          <div className="flex items-center">
+                            <svg className="w-4 h-4 text-gray-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                             </svg>
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                            <p className="font-medium text-gray-700 truncate pr-8">{session.title || 'Untitled Conversation'}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 pl-6">
+                            {new Date(session.lastActivityAt).toLocaleDateString()} · {new Date(session.lastActivityAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </p>
+                        </Link>
+                        <button
+                          onClick={(e) => handleDeleteSession(session.id, e)}
+                          className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Delete conversation"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
           

@@ -19,7 +19,6 @@ const SplineScene = dynamic(() => import("../../../components/SplineScene"), {
 // This page shows an empty chat interface and only creates a session when the first message is sent
 export default function NewChatPage() {
   const { currentUser, loading } = useAuth();
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -33,6 +32,28 @@ export default function NewChatPage() {
       initializeSocket(currentUser.uid);
     }
   }, [currentUser]);
+
+  // Listen for reset event from "New Chat" button
+  useEffect(() => {
+    const handleResetNewChat = () => {
+      console.log('Resetting new chat page state');
+      // Reset all state to initial values
+      setIsSubmitting(false);
+      setSessionId(null);
+      setMessages([]);
+      setShowChat(false);
+      setIsTransitioning(false);
+      
+      // Clear URL back to /chat
+      window.history.pushState({}, '', '/chat');
+    };
+
+    window.addEventListener('resetNewChat', handleResetNewChat);
+    
+    return () => {
+      window.removeEventListener('resetNewChat', handleResetNewChat);
+    };
+  }, []);
 
   // Add class to body to ensure full interaction with Spline and prevent scrolling
   useEffect(() => {
@@ -60,7 +81,12 @@ export default function NewChatPage() {
       // Create a new chat session first
       const session = await createChatSession(currentUser.uid);
       
-      // Set the session ID and show chat interface
+      // Immediately notify the sidebar about the new session
+      window.dispatchEvent(new CustomEvent('newSessionCreated', { 
+        detail: { sessionId: session.id, title: 'New Conversation' } 
+      }));
+      
+      // Set the session ID and show chat interface (no temporary message)
       setSessionId(session.id);
       setShowChat(true);
       
@@ -80,7 +106,7 @@ export default function NewChatPage() {
           });
           window.dispatchEvent(event);
           
-          // Dispatch a notification that we want to refresh the session list
+          // Dispatch a notification that we want to refresh the session list for title update
           setTimeout(() => {
             window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
           }, 1000);

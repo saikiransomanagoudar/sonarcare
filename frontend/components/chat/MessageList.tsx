@@ -144,37 +144,37 @@ const MessageList: React.FC<MessageListProps> = ({
     return timeStampSorted.map(({_sortTimestamp, ...rest}) => rest);
   }, [messages]);
 
-  // If no messages, show welcome message with transparency
-  if (sortedMessages.length === 0 && !isLoading && !isTyping && Object.keys(streamingMessages).length === 0 && !streamingMessage) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10" style={{ pointerEvents: 'none' }}>
-        <div className="max-w-lg bg-white/80 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-200/50" style={{ pointerEvents: 'auto' }}>
-          <div className="w-20 h-20 rounded-full bg-blue-100/90 backdrop-blur-sm flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <svg 
-              className="h-10 w-10 text-blue-500" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">Welcome to SonarCare</h2>
-          <p className="text-gray-600 mb-6">
-            Your AI medical assistant powered by Perplexity Sonar. Ask me anything about health and medical topics.
-          </p>
-          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-sm mb-4 bg-opacity-80 backdrop-blur-sm">
-            <p className="text-yellow-700 text-sm">
-              <strong>Medical Disclaimer:</strong> Information provided is for general purposes only and is not a substitute for professional medical advice, diagnosis, or treatment.
-              Always seek the advice of your physician or other qualified health provider.
-            </p>
-          </div>
-          <p className="text-gray-500 text-sm">Type your first message below to get started.</p>
-        </div>
-      </div>
-    );
-  }
+  // // If no messages, show welcome message with transparency
+  // if (sortedMessages.length === 0 && !isLoading && !isTyping && Object.keys(streamingMessages).length === 0 && !streamingMessage) {
+  //   return (
+  //     <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10" style={{ pointerEvents: 'none' }}>
+  //       <div className="max-w-lg bg-white/80 backdrop-blur-lg rounded-2xl p-8 shadow-xl border border-gray-200/50" style={{ pointerEvents: 'auto' }}>
+  //         <div className="w-20 h-20 rounded-full bg-blue-100/90 backdrop-blur-sm flex items-center justify-center mx-auto mb-6 shadow-lg">
+  //           <svg 
+  //             className="h-10 w-10 text-blue-500" 
+  //             fill="none" 
+  //             viewBox="0 0 24 24" 
+  //             stroke="currentColor"
+  //             strokeWidth="1.5"
+  //           >
+  //             <path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  //           </svg>
+  //         </div>
+  //         <h2 className="text-2xl font-bold text-gray-800 mb-3">Welcome to SonarCare</h2>
+  //         <p className="text-gray-600 mb-6">
+  //           Your AI medical assistant powered by Perplexity Sonar. Ask me anything about health and medical topics.
+  //         </p>
+  //         <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-400 p-4 rounded-lg shadow-sm mb-4 bg-opacity-80 backdrop-blur-sm">
+  //           <p className="text-yellow-700 text-sm">
+  //             <strong>Medical Disclaimer:</strong> Information provided is for general purposes only and is not a substitute for professional medical advice, diagnosis, or treatment.
+  //             Always seek the advice of your physician or other qualified health provider.
+  //           </p>
+  //         </div>
+  //         <p className="text-gray-500 text-sm">Type your first message below to get started.</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Create an array for streaming messages to display (keeping your existing logic)
   const streamingBubbles = Object.entries(streamingMessages).map(([messageId, text]) => {
