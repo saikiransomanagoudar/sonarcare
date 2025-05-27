@@ -94,7 +94,7 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
             "userId": user_id,
             "createdAt": datetime.now(),
             "lastActivityAt": datetime.now(),
-            "title": "New Medical Conversation",
+            "title": "New Chat",
             "summary": None
         }
     
@@ -103,7 +103,7 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
         "userId": user_id,
         "createdAt": now,
         "lastActivityAt": now,
-        "title": "New Medical Conversation",
+        "title": "New Chat",
     }
     
     # Firebase operations are not async, run them as is

@@ -3,6 +3,7 @@ import { WebSocketMessage, ChatMessage } from '../types';
 
 let socket: Socket | null = null;
 let currentUserId: string | null = null;
+let isInitializing = false;
 
 // Create a cache for recently sent messages to prevent duplicates on reconnection
 const sentMessagesCache = new Map<string, number>();
@@ -30,16 +31,31 @@ const cleanupMessageCache = () => {
 
 export const initializeSocket = (userId: string) => {
   // If socket exists and user is the same, return existing socket
-  if (socket && socket.connected && currentUserId === userId) {
-    console.log('Reusing existing WebSocket connection for user:', userId);
+  if (socket && currentUserId === userId) {
+    if (socket.connected) {
+      console.log('Reusing existing connected WebSocket for user:', userId);
+      return socket;
+    } else {
+      console.log('Socket exists but not connected, attempting to reconnect for user:', userId);
+      socket.connect();
+      return socket;
+    }
+  }
+
+  // Prevent multiple simultaneous initializations
+  if (isInitializing) {
+    console.log('Socket already initializing, waiting...');
     return socket;
   }
 
   // Disconnect existing socket if user changed
   if (socket) {
-    console.log('Disconnecting existing socket for user change');
+    console.log('Disconnecting existing socket for user change:', currentUserId, '->', userId);
     socket.disconnect();
+    socket = null;
   }
+
+  isInitializing = true;
 
   currentUserId = userId;
   const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -64,6 +80,9 @@ export const initializeSocket = (userId: string) => {
 
   console.log('WebSocket initialized for user:', userId);
   
+  // Remove existing listeners to prevent duplicates
+  socket.removeAllListeners();
+  
   // Connection events
   socket.on('connect', () => {
     console.log('Connected to WebSocket server with socket ID:', socket?.id);
@@ -73,6 +92,16 @@ export const initializeSocket = (userId: string) => {
   socket.on('disconnect', (reason) => {
     console.log('Disconnected from WebSocket server. Reason:', reason);
     connectionListeners.forEach(listener => listener(false));
+    
+    // Don't auto-reconnect on client-initiated disconnects
+    if (reason === 'io server disconnect') {
+      console.log('Server disconnected, attempting auto-reconnection...');
+      setTimeout(() => {
+        if (socket && !socket.connected) {
+          socket.connect();
+        }
+      }, 1000);
+    }
   });
   
   socket.on('connect_error', (error) => {
@@ -82,6 +111,7 @@ export const initializeSocket = (userId: string) => {
   
   socket.on('error', (error) => {
     console.error('WebSocket error:', error);
+    // Don't disconnect on runtime errors, just log them
   });
 
   // Listen for successful join confirmation
@@ -150,6 +180,7 @@ export const initializeSocket = (userId: string) => {
     streamCompleteListeners.forEach(listener => listener(dummyMessage));
   });
   
+  isInitializing = false;
   return socket;
 };
 
@@ -298,19 +329,44 @@ export const removeListeners = () => {
   statusListeners = [];
   connectionListeners = [];
 
-  // Remove socket event listeners
-  if (socket) {
-    socket.off('message');
-    socket.off('typing');
-    socket.off('stream_token');
-    socket.off('stream_complete');
-    socket.off('message_start');
-    socket.off('message_chunk');
-    socket.off('message_complete');
-    socket.off('status');
-  }
+  // DO NOT remove socket event listeners here - they need to persist
+  // Only clear our internal listener arrays
+  console.log('Cleared internal listener arrays');
 };
 
 // Utility functions
 export const getSocket = (): Socket | null => socket;
 export const isConnected = (): boolean => socket?.connected || false;
+
+// Health check and reconnection management
+export const ensureConnection = (userId: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (socket && socket.connected) {
+      resolve(true);
+      return;
+    }
+    
+    // Initialize or reconnect
+    const socketInstance = initializeSocket(userId);
+    
+    if (socketInstance.connected) {
+      resolve(true);
+      return;
+    }
+    
+    // Wait for connection
+    const timeout = setTimeout(() => {
+      resolve(false);
+    }, 5000); // 5 second timeout
+    
+    socketInstance.once('connect', () => {
+      clearTimeout(timeout);
+      resolve(true);
+    });
+    
+    socketInstance.once('connect_error', () => {
+      clearTimeout(timeout);
+      resolve(false);
+    });
+  });
+};

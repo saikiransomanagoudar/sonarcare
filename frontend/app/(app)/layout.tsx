@@ -9,6 +9,7 @@ import { getChatSessions, createChatSession, deleteChatSession } from '../../lib
 import { ChatSession } from '../../types';
 import { toast } from 'react-toastify';
 import dynamic from 'next/dynamic';
+import ConfirmationModal from '../../components/ui/ConfirmationModal';
 
 // Import SplineScene component with dynamic import to avoid SSR issues
 const SplineScene = dynamic(() => import('../../components/SplineScene'), {
@@ -28,6 +29,11 @@ export default function AppLayout({
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, sessionId: string | null, isDeleting: boolean}>({
+    isOpen: false,
+    sessionId: null,
+    isDeleting: false
+  });
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -98,6 +104,21 @@ export default function AppLayout({
     };
   }, []);
 
+  // Handle window resize to close mobile sidebar when switching to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setSidebarOpen(false); // Close mobile sidebar on desktop
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
   // Handle creating a new chat
   const handleNewChat = () => {
     // Simply redirect to the New Chat page
@@ -111,50 +132,46 @@ export default function AppLayout({
     e.preventDefault();
     e.stopPropagation();
     
-    // Show confirmation toast with actions
-    toast.info(
-      <div>
-        <p>Delete this conversation?</p>
-        <div className="mt-2 flex justify-end gap-2">
-          <button 
-            onClick={() => toast.dismiss()}
-            className="px-3 py-1 bg-gray-200 rounded text-sm"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={async () => {
-              toast.dismiss();
-              
-              // Show loading toast
-              const loadingToast = toast.loading("Deleting conversation...");
-              
-              try {
-                await deleteChatSession(sessionId);
-                toast.dismiss(loadingToast);
-                toast.success("Conversation deleted successfully");
-                
-                // Update local state
-                setSessions(prev => prev.filter(session => session.id !== sessionId));
-                
-                // If we're currently viewing the deleted session, redirect to the chat page
-                if (pathname === `/chat/${sessionId}`) {
-                  router.push('/chat');
-                }
-              } catch (error) {
-                toast.dismiss(loadingToast);
-                toast.error("Failed to delete the conversation. Please try again.");
-                console.error('Error deleting chat session:', error);
-              }
-            }}
-            className="px-3 py-1 bg-red-500 text-white rounded text-sm"
-          >
-            Delete
-          </button>
-        </div>
-      </div>,
-      { autoClose: false, closeOnClick: false }
-    );
+    // Open the confirmation modal
+    setDeleteModal({
+      isOpen: true,
+      sessionId,
+      isDeleting: false
+    });
+  };
+
+  // Handle confirming the deletion
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.sessionId) return;
+
+    setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+
+    try {
+      await deleteChatSession(deleteModal.sessionId);
+      toast.success("Conversation deleted successfully");
+      
+      // Update local state
+      setSessions(prev => prev.filter(session => session.id !== deleteModal.sessionId));
+      
+      // If we're currently viewing the deleted session, redirect to the chat page
+      if (pathname === `/chat/${deleteModal.sessionId}`) {
+        router.push('/chat');
+      }
+      
+      // Close modal
+      setDeleteModal({ isOpen: false, sessionId: null, isDeleting: false });
+    } catch (error) {
+      toast.error("Failed to delete the conversation. Please try again.");
+      console.error('Error deleting chat session:', error);
+      setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  // Handle closing the modal
+  const handleCloseDeleteModal = () => {
+    if (!deleteModal.isDeleting) {
+      setDeleteModal({ isOpen: false, sessionId: null, isDeleting: false });
+    }
   };
 
   // Show loading state while checking auth
@@ -184,36 +201,76 @@ export default function AppLayout({
       <Navbar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
       
       <div className="flex flex-1 overflow-hidden relative z-10">
-        {/* Sidebar for chat history */}
-        <div className={`${sidebarOpen ? 'block' : 'hidden'} md:block md:relative ${desktopSidebarOpen ? 'md:w-64' : 'md:w-12'} bg-white border-r border-gray-200 shadow-sm transition-all duration-300 flex flex-col h-full`}>
-          {/* Toggle button for desktop */}
-          <button 
-            onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
-            className="hidden md:flex absolute right-0 top-4 bg-white p-1 rounded-l-md shadow-md border border-r-0 border-gray-200 z-10"
-            style={{ transform: 'translateX(100%)' }}
-            aria-label={desktopSidebarOpen ? 'Minimize sidebar' : 'Expand sidebar'}
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 z-20 backdrop-blur-md bg-white/20 md:hidden transition-all duration-300 ease-in-out"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+        
+        {/* Toggle button for desktop - positioned relative to the main container */}
+        <button 
+          onClick={() => setDesktopSidebarOpen(!desktopSidebarOpen)}
+          className={`cursor-pointer hidden md:flex absolute top-4 bg-white p-1.5 rounded-full shadow-lg border border-gray-300 hover:bg-gray-50 hover:shadow-xl transition-all duration-200 items-center justify-center z-40 ${
+            desktopSidebarOpen ? 'left-60' : 'left-11.5'
+          }`}
+          aria-label={desktopSidebarOpen ? 'Minimize sidebar' : 'Expand sidebar'}
+        >
+          <svg 
+            className="h-4 w-4 text-gray-600 hover:text-gray-800 transition-colors duration-200" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+            strokeWidth="2.5"
           >
-            <svg 
-              className="h-5 w-5 text-gray-500 hover:text-gray-700" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth="2" 
-                d={desktopSidebarOpen ? "M15 19l-7-7 7-7" : "M9 5l7 7-7 7"} 
-              />
-            </svg>
-          </button>
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              d={desktopSidebarOpen ? "M15 19l-7-7 7-7" : "M9 5l7 7-7 7"} 
+            />
+          </svg>
+        </button>
+
+        {/* Sidebar for chat history */}
+        <div className={`
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+          md:translate-x-0 
+          fixed md:relative 
+          left-0 top-0 
+          z-30 md:z-auto
+          w-64 
+          ${desktopSidebarOpen ? 'md:w-64' : 'md:w-12'} 
+          h-full
+          bg-white 
+          border-r border-gray-200 
+          shadow-lg md:shadow-sm 
+          transition-all duration-300 ease-in-out
+          flex flex-col
+          pt-16 md:pt-0
+          will-change-transform
+        `}>
           
           {/* Sidebar content - conditionally show full content based on desktopSidebarOpen */}
           <div className={`relative flex-1 flex flex-col ${!desktopSidebarOpen && 'md:hidden'}`}>       
-            <div className="px-4 pb-4 flex-1 flex flex-col">
+            {/* Mobile close button */}
+            <div className="md:hidden flex justify-between items-center px-4 py-3 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-800">Menu</h2>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="cursor-pointer p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                aria-label="Close sidebar"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="px-4 py-4 flex-1 flex flex-col overflow-hidden">
               <button
                 onClick={handleNewChat}
-                className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center mb-6"
+                className="cursor-pointer w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center mb-6"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -221,7 +278,7 @@ export default function AppLayout({
                 New Chat
               </button>
               
-              <div className="flex-1 min-h-0">
+                              <div className="flex-1 min-h-0 overflow-hidden">
                 <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-3 px-2">Recent Conversations</h3>
                 {loadingSessions ? (
                   <div className="flex justify-center py-4">
@@ -230,11 +287,11 @@ export default function AppLayout({
                 ) : sessions.length === 0 ? (
                   <p className="text-center text-sm text-gray-500 py-4">No conversations yet</p>
                 ) : (
-                  <ul className="space-y-1 overflow-y-auto max-h-full pr-2">
+                  <ul className="space-y-1 overflow-y-auto h-full pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                     {sessions.map((session) => (
                       <li key={session.id}>
                         <div className="relative group">
-                          <Link 
+                                                      <Link 
                             href={`/chat/${session.id}`}
                             className={`block px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors ${
                               pathname === `/chat/${session.id}` ? 'bg-blue-50 border-l-4 border-blue-500 pl-2' : ''
@@ -253,7 +310,7 @@ export default function AppLayout({
                           </Link>
                           <button
                             onClick={(e) => handleDeleteSession(session.id, e)}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                             title="Delete conversation"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -271,12 +328,10 @@ export default function AppLayout({
           
           {/* Minimized sidebar content */}
           {!desktopSidebarOpen && (
-            <div className="hidden md:flex flex-col items-center pt-4">
-              
-              
+            <div className="hidden md:flex flex-col items-center pt-4 px-2">
               <button
                 onClick={handleNewChat}
-                className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors mb-6"
+                className="cursor-pointer p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors mb-6"
                 title="New Chat"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -290,7 +345,7 @@ export default function AppLayout({
                     <Link 
                       key={session.id}
                       href={`/chat/${session.id}`}
-                      className={`p-2 rounded-lg hover:bg-gray-100 transition-colors ${
+                      className={`cursor-pointer p-2 rounded-lg hover:bg-gray-100 transition-colors ${
                         pathname === `/chat/${session.id}` ? 'bg-blue-50' : ''
                       }`}
                       title={session.title || 'Untitled Conversation'}
@@ -307,10 +362,22 @@ export default function AppLayout({
         </div>
         
         {/* Main content */}
-        <div className="flex-1 overflow-hidden bg-white bg-opacity-90 backdrop-blur-sm">
+        <div className="flex-1 overflow-hidden bg-white bg-opacity-90 backdrop-blur-sm w-full md:w-auto">
           {children}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Conversation"
+        message="Are you sure you want to delete this conversation? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        isLoading={deleteModal.isDeleting}
+      />
     </div>
   );
 }

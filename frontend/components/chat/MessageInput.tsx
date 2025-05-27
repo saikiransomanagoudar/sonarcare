@@ -51,15 +51,15 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const isDisabled = isLoading || disabled || !message.trim();
 
   return (
-    <div className="p-1">
+    <div>
       <form onSubmit={handleSubmit}>
         <div className="relative">
           <textarea
             ref={textareaRef}
-            className={`w-full border rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 resize-none min-h-[50px] max-h-[150px] text-gray-700 placeholder-gray-400 shadow-lg backdrop-blur-md transition-all duration-200 ${
+            className={`w-full border rounded-2xl px-4 py-3 pr-14 focus:outline-none focus:ring-2 resize-none min-h-[56px] max-h-[150px] text-gray-700 placeholder-gray-500 transition-all duration-200 shadow-lg ${
               disabled 
-                ? 'border-gray-200 bg-gray-50 bg-opacity-80 cursor-not-allowed focus:ring-gray-300' 
-                : 'border-gray-300 bg-white bg-opacity-90 hover:bg-opacity-95 focus:ring-blue-400 focus:border-transparent'
+                ? 'border-gray-200/60 bg-white/80 cursor-not-allowed focus:ring-gray-200/30' 
+                : 'border-gray-200/60 bg-white/90 backdrop-blur-sm hover:border-blue-300/80 focus:ring-blue-200/40 focus:border-blue-400'
             }`}
             placeholder={disabled ? "Connecting to SonarCare..." : "Type your medical question..."}
             value={message}
@@ -70,10 +70,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
           />
           <button
             type="submit"
-            className={`absolute right-2 bottom-3 p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${
+            className={`absolute right-3.5 bottom-3.5 p-3 px-2.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
               isDisabled
-                ? 'bg-gray-100 bg-opacity-80 text-gray-400 cursor-not-allowed' 
-                : 'bg-blue-500 bg-opacity-90 text-white hover:bg-blue-600 hover:bg-opacity-95 hover:scale-105 shadow-lg hover:shadow-xl'
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105 shadow-md hover:shadow-lg'
             }`}
             disabled={isDisabled}
             title={disabled ? "Connecting..." : isLoading ? "Sending..." : "Send message"}

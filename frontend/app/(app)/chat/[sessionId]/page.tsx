@@ -260,7 +260,7 @@ export default function ChatSessionPage() {
             <p className="text-red-200">{error}</p>
             <button 
               onClick={() => window.location.reload()} 
-              className="mt-4 px-4 py-2 bg-red-500/30 hover:bg-red-500/40 rounded-lg transition-colors text-sm font-medium"
+              className="cursor-pointer mt-4 px-4 py-2 bg-red-500/30 hover:bg-red-500/40 rounded-lg transition-colors text-sm font-medium"
             >
               Try Again
             </button>
@@ -271,13 +271,13 @@ export default function ChatSessionPage() {
   }
 
   return (
-    <div className="h-screen relative overflow-hidden pt-16">
+    <div className="h-screen relative overflow-hidden">
       <div className="absolute inset-0 z-0">
         <SplineScene />
       </div>
-      <div className="relative z-10 h-full flex justify-center items-start overflow-hidden">
-        <div className="w-full max-w-4xl mx-auto px-4 h-full overflow-hidden">
-          <ChatLayout initialMessages={messages} sessionId={sessionId} />
+      <div className="relative z-10 h-full flex justify-center items-start overflow-hidden pt-16">
+        <div className="w-full max-w-4xl mx-auto px-4 h-full flex flex-col overflow-hidden">
+          <ChatLayout key={sessionId} initialMessages={messages} sessionId={sessionId} />
         </div>
       </div>
     </div>

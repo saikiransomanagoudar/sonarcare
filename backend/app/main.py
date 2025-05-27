@@ -61,12 +61,12 @@ async def log_requests(request: Request, call_next):
 sio = socketio.AsyncServer(
     async_mode="asgi",
     cors_allowed_origins=origins,
-    logger=True,
-    engineio_logger=True,
-    ping_timeout=60,
-    ping_interval=25,
+    logger=False,  # Disable verbose logging
+    engineio_logger=False,  # Disable verbose engineio logging
+    ping_timeout=120,  # Increased timeout
+    ping_interval=30,
     always_connect=True,
-    max_http_buffer_size=1024 * 1024  # 1MB buffer for large responses
+    max_http_buffer_size=2 * 1024 * 1024  # 2MB buffer for large responses
 )
 socket_app = socketio.ASGIApp(
     sio,
@@ -115,23 +115,28 @@ async def health_check():
 @sio.event
 async def connect(sid, environ, auth):
     """Handle client connection with authentication."""
-    logger.info(f"Client attempting to connect: {sid}")
-    
-    if not auth or "userId" not in auth:
-        logger.warning(f"Client {sid} connection rejected: missing auth")
+    try:
+        logger.info(f"Client attempting to connect: {sid}")
+        
+        if not auth or "userId" not in auth:
+            logger.warning(f"Client {sid} connection rejected: missing auth")
+            return False
+        
+        logger.info(f"Client connected successfully: {sid} for user: {auth['userId']}")
+        await sio.emit("connected", {
+            "status": "connected",
+            "timestamp": datetime.now().isoformat()
+        }, room=sid)
+        return True
+    except Exception as e:
+        logger.error(f"Error in connect handler: {str(e)}")
         return False
-    
-    logger.info(f"Client connected successfully: {sid} for user: {auth['userId']}")
-    await sio.emit("connected", {
-        "status": "connected",
-        "timestamp": datetime.now().isoformat()
-    }, room=sid)
-    return True
 
 @sio.event
 async def disconnect(sid):
     """Handle client disconnection."""
     logger.info(f"Client disconnected: {sid}")
+    # Clean up any session data for this client if needed
 
 @sio.event
 async def join(sid, data):
@@ -211,11 +216,17 @@ async def leave(sid, data):
 @sio.event
 async def message(sid, data):
     """Handle incoming messages with streaming response support."""
-    if not all(key in data for key in ["text", "sessionId", "userId"]):
-        logger.warning(f"Message from {sid} missing required fields: {data}")
-        await sio.emit("error", {
-            "message": "Missing required fields: text, sessionId, userId"
-        }, room=sid)
+    try:
+        logger.info(f"Received message from {sid}: {data}")
+        
+        if not all(key in data for key in ["text", "sessionId", "userId"]):
+            logger.warning(f"Message from {sid} missing required fields: {data}")
+            await sio.emit("error", {
+                "message": "Missing required fields: text, sessionId, userId"
+            }, room=sid)
+            return
+    except Exception as e:
+        logger.error(f"Error validating message from {sid}: {str(e)}")
         return
     
     # Extract message data
@@ -267,12 +278,13 @@ async def message(sid, data):
         # Continue processing even if save fails
     
     logger.info(f"Processing message from {sid} in session {session_id}: {message_text[:50]}...")
+    # Emit user message to all clients in the session
     await sio.emit("message", user_message, room=session_id)
     
-    # Create a unique message ID for the bot response
-    bot_message_id = str(uuid.uuid4())
-    
     try:
+        # Create a unique message ID for the bot response
+        bot_message_id = str(uuid.uuid4())
+        
         # Import the streaming chat service
         from app.services.streaming_chat_service import process_message_streaming
         
@@ -316,13 +328,17 @@ async def message(sid, data):
                 elif chunk["type"] == "chunk":
                     # Emit incremental updates
                     if message_started:
-                        await sio.emit("message_chunk", {
-                            "id": bot_message_id,
-                            "text": chunk["data"],
-                            "sessionId": session_id,
-                            "done": False,
-                            "timestamp": datetime.now().isoformat()
-                        }, room=session_id)
+                        try:
+                            await sio.emit("message_chunk", {
+                                "id": bot_message_id,
+                                "text": chunk["data"],
+                                "sessionId": session_id,
+                                "done": False,
+                                "timestamp": datetime.now().isoformat()
+                            }, room=session_id)
+                        except Exception as chunk_error:
+                            logger.error(f"Error emitting chunk: {str(chunk_error)}")
+                            # Continue processing even if a chunk fails
                     
                 elif chunk["type"] == "end":
                     # Emit the final complete message

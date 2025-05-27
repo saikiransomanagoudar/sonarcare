@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../../hooks/useAuth";
 import { createChatSession, sendMessage } from "../../../lib/api";
 import MessageInput from "../../../components/chat/MessageInput";
+import ChatLayout from "../../../components/chat/ChatLayout";
+import { ChatMessage } from "../../../types";
+import { initializeSocket } from "../../../lib/socket";
 import dynamic from "next/dynamic";
 
 // Import SplineScene component with dynamic import
@@ -18,6 +21,18 @@ export default function NewChatPage() {
   const { currentUser, loading } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [showChat, setShowChat] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Initialize WebSocket connection early
+  useEffect(() => {
+    if (currentUser) {
+      console.log('Initializing WebSocket early for new chat page');
+      initializeSocket(currentUser.uid);
+    }
+  }, [currentUser]);
 
   // Add class to body to ensure full interaction with Spline and prevent scrolling
   useEffect(() => {
@@ -40,18 +55,42 @@ export default function NewChatPage() {
     setIsSubmitting(true);
 
     try {
+      setIsTransitioning(true);
+      
       // Create a new chat session first
       const session = await createChatSession(currentUser.uid);
+      
+      // Set the session ID and show chat interface
+      setSessionId(session.id);
+      setShowChat(true);
+      
+      // Update URL without redirecting to maintain streaming
+      window.history.pushState({}, '', `/chat/${session.id}`);
+      
+      // Add a delay to ensure session is fully created and WebSocket is ready
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setIsTransitioning(false);
+        
+        // Wait for ChatLayout to mount and WebSocket to join session
+        setTimeout(() => {
+          // Dispatch the first message event for the ChatLayout to handle
+          const event = new CustomEvent('sendFirstMessage', { 
+            detail: { message: text } 
+          });
+          window.dispatchEvent(event);
+          
+          // Dispatch a notification that we want to refresh the session list
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
+          }, 1000);
+        }, 200); // Additional delay for WebSocket session join
+      }, 300); // Initial delay for session creation
 
-      // Add a small delay to ensure session is fully created in backend
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Instead of sending via REST API and redirecting, 
-      // redirect to the session immediately and let the WebSocket handle the message
-      router.push(`/chat/${session.id}?firstMessage=${encodeURIComponent(text)}`);
     } catch (error) {
       console.error("Error creating new chat session:", error);
       setIsSubmitting(false);
+      setIsTransitioning(false);
     }
   };
 
@@ -69,6 +108,23 @@ export default function NewChatPage() {
     );
   }
 
+  // Show chat interface if session is created
+  if (showChat && sessionId) {
+    return (
+      <div className="h-screen relative overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <SplineScene />
+        </div>
+        <div className="relative z-10 h-full flex justify-center items-start overflow-hidden pt-16">
+          <div className="w-full max-w-4xl mx-auto px-4 h-full flex flex-col overflow-hidden">
+            <ChatLayout key={sessionId} initialMessages={messages} sessionId={sessionId} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show welcome screen
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden pt-16">
       <div className="absolute inset-0 z-0">

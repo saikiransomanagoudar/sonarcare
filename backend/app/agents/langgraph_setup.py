@@ -243,22 +243,28 @@ async def process_with_langgraph_streaming(
                 "metadata": {**metadata, "intent": intent, **intent_metadata}
             }
             
-            # Break response into chunks for streaming effect
-            words = response.split()
+            # Stream with larger batches for better performance and faster response
             current_text = ""
+            words = response.split(' ')
             
             for i, word in enumerate(words):
-                current_text += word + " "
+                current_text += word
+                if i < len(words) - 1:
+                    current_text += " "
                 
-                # Yield chunk every few words or at sentence boundaries
-                if i % 5 == 0 or word.endswith('.') or word.endswith('!') or word.endswith('?'):
+                # Emit every few words or at sentence boundaries
+                if i % 3 == 0 or word.endswith('.') or word.endswith('!') or word.endswith('?') or i == len(words) - 1:
                     yield {
                         "type": "chunk",
-                        "data": current_text.strip(),
+                        "data": current_text,
                         "done": False
                     }
-                    # Small delay for streaming effect
-                    await asyncio.sleep(0.03)
+                    
+                    # Much faster delays to prevent timeouts
+                    if word.endswith('.') or word.endswith('!') or word.endswith('?'):
+                        await asyncio.sleep(0.1)  # Brief pause after sentences
+                    else:
+                        await asyncio.sleep(0.02)  # Very brief pause otherwise
             
             # Create final bot message
             processing_time = (datetime.now() - start_time).total_seconds()

@@ -152,8 +152,7 @@ class SonarAgent:
             Dict containing streaming data with keys: type, data, done
         """
         try:
-            # For now, simulate streaming by breaking down the full response
-            # In the future, this could be replaced with actual streaming API calls
+            # Generate the full response first (we'll improve this later for true streaming)
             response_text, metadata = await self.generate_response(query, message_history)
             
             # Yield start signal
@@ -164,23 +163,29 @@ class SonarAgent:
                 "metadata": metadata
             }
             
-            # Split response into words for streaming effect
-            words = response_text.split()
+            # Stream with larger batches for better performance and faster response
             current_text = ""
+            words = response_text.split(' ')
             
             for i, word in enumerate(words):
-                current_text += word + " "
+                current_text += word
+                if i < len(words) - 1:
+                    current_text += " "
                 
-                # Yield chunk every few words or at sentence boundaries
-                if i % 3 == 0 or word.endswith('.') or word.endswith('!') or word.endswith('?'):
+                # Emit every few words or at sentence boundaries
+                if i % 3 == 0 or word.endswith('.') or word.endswith('!') or word.endswith('?') or i == len(words) - 1:
                     yield {
                         "type": "chunk",
-                        "data": current_text.strip(),
+                        "data": current_text,
                         "done": False,
                         "metadata": {}
                     }
-                    # Add small delay to simulate real streaming
-                    await asyncio.sleep(0.05)
+                    
+                    # Much faster delays to prevent timeouts
+                    if word.endswith('.') or word.endswith('!') or word.endswith('?'):
+                        await asyncio.sleep(0.1)  # Brief pause after sentences
+                    else:
+                        await asyncio.sleep(0.02)  # Very brief pause otherwise
             
             # Yield final response
             yield {

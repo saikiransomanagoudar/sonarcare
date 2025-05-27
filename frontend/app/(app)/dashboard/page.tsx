@@ -122,7 +122,7 @@ export default function DashboardPage() {
                 </Link>
                 <button
                   onClick={() => handleDeleteSession(session.id)}
-                  className="flex-1 px-4 py-2 text-center text-red-500 hover:bg-red-50 transition-colors text-sm"
+                  className="cursor-pointer flex-1 px-4 py-2 text-center text-red-500 hover:bg-red-50 transition-colors text-sm"
                 >
                   Delete
                 </button>
