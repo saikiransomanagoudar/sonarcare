@@ -38,8 +38,6 @@ frontend/
 - **shadcn/ui**: Modern component library
 - **Firebase SDK**: Authentication and Firestore integration
 - **Socket.IO Client**: Real-time communication
-- **Zustand**: State management
-- **React Markdown**: Formatted response rendering
 
 ### Backend (FastAPI)
 ```
