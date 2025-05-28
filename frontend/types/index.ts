@@ -11,7 +11,7 @@ export interface User {
 export interface ChatSession {
   id: string;
   userId: string;
-  title?: string;
+  title?: string | null;
   summary?: string;
   createdAt: string; // Changed from any to string since backend now returns ISO strings
   lastActivityAt: string; // Changed from any to string since backend now returns ISO strings
