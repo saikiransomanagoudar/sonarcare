@@ -11,6 +11,7 @@
 /backend/app/core/__pycache__
 /backend/app/services/__pycache__
 /backend/sonarcare-532c4-firebase-adminsdk-fbsvc-bab5212099.json
+/backend/.pytest_cache
 /.pnp
 .pnp.*
 .yarn/*
