@@ -48,20 +48,106 @@ Response format: Only output the extracted research topic - nothing else."""
         logger.info(f"Deep research topic: {topic}")
         
         # Build a comprehensive research prompt
-        research_prompt = f"""Generate a comprehensive, expert-level research analysis on {topic}.
+        research_prompt = f"""Generate a comprehensive, expert-level research analysis on {topic} that provides maximum medical information and value. For cutting-edge research and current information, search the internet and provide source citations with actual URLs.
 
-Your research should include:
-1. Current scientific understanding and consensus on the topic
-2. Recent advancements or breakthroughs (within the last 1-3 years)
-3. Evidence-based treatments or interventions
-4. Ongoing clinical trials or promising areas of research
-5. Expert perspectives and any controversies in the field
-6. Statistical data and epidemiological information, if relevant
-7. References to specific research papers or medical guidelines
+**CURRENT SCIENTIFIC UNDERSTANDING:**
+- Latest medical consensus and evidence-based understanding
+- Fundamental pathophysiology and biological mechanisms
+- Recent paradigm shifts or evolving concepts in the field
+- Molecular and cellular basis of the condition/topic
+- Genetic and epigenetic factors involved
+- Biomarkers and diagnostic innovations
 
-Structure this as an accessible yet thorough summary that balances scientific accuracy with understandable language. Include specific details where appropriate (medication names, treatment approaches, scientific mechanisms).
+**CUTTING-EDGE RESEARCH AND BREAKTHROUGHS:**
+- Recent breakthrough studies and landmark research (last 1-3 years)
+- Emerging therapeutic targets and novel treatment approaches
+- Innovative diagnostic technologies and precision medicine advances
+- Gene therapy, immunotherapy, and regenerative medicine developments
+- Artificial intelligence and digital health applications
+- Nanotechnology and targeted drug delivery systems
 
-Remember this is for informational purposes only and not medical advice. Note that research is continually evolving and the user should consult healthcare professionals for personalized guidance."""
+**COMPREHENSIVE TREATMENT LANDSCAPE:**
+- Evidence hierarchy: proven treatments vs. experimental approaches
+- Mechanism of action for different therapeutic classes
+- Comparative effectiveness research and treatment algorithms
+- Personalized medicine and biomarker-guided therapy
+- Combination therapies and synergistic approaches
+- Treatment resistance mechanisms and overcoming strategies
+
+**ACTIVE CLINICAL RESEARCH:**
+- Current Phase II and Phase III clinical trials
+- Promising investigational drugs and devices
+- Novel therapeutic targets under investigation
+- Recruitment criteria and trial locations for patient reference
+- Expected timeline for new treatment approvals
+- Breakthrough therapy designations and fast-track processes
+
+**EXPERT PERSPECTIVES AND CONTROVERSIES:**
+- Leading research institutions and key opinion leaders
+- Ongoing scientific debates and areas of uncertainty
+- Conflicting evidence and how experts interpret differences
+- International variations in treatment approaches
+- Health economic considerations and cost-effectiveness
+- Ethical considerations in treatment and research
+
+**STATISTICAL AND EPIDEMIOLOGICAL DATA:**
+- Prevalence and incidence rates across different populations
+- Risk stratification and prognostic factors
+- Natural history and disease progression patterns
+- Mortality and morbidity statistics
+- Health disparities and access considerations
+- Global burden of disease and regional variations
+
+**FUTURE DIRECTIONS AND EMERGING TRENDS:**
+- Research priorities and funding focus areas
+- Technological innovations on the horizon
+- Potential game-changing discoveries in development
+- Anticipated regulatory approvals and timeline
+- Integration with digital health and telemedicine
+- Prevention strategies and population health approaches
+
+**PRACTICAL CLINICAL APPLICATIONS:**
+- How research findings translate to clinical practice
+- Implementation challenges and real-world effectiveness
+- Healthcare system implications and resource requirements
+- Training and education needs for healthcare providers
+- Patient advocacy and support resources
+- Quality metrics and outcome measurements
+
+**RESEARCH METHODOLOGY AND EVIDENCE QUALITY:**
+- Types of studies available (RCTs, meta-analyses, real-world evidence)
+- Quality assessment of available evidence
+- Limitations and gaps in current research
+- Sources of bias and how they're addressed
+- Reproducibility and validation of findings
+- International collaboration and data sharing initiatives
+
+**PATIENT AND HEALTHCARE IMPLICATIONS:**
+- How research advances benefit patients currently
+- Timeline for research to reach clinical practice
+- Patient selection criteria for new treatments
+- Monitoring and safety considerations
+- Healthcare provider education and training needs
+- Health system adaptations required for new approaches
+
+**SOURCE REQUIREMENTS FOR CURRENT RESEARCH:**
+When you search the internet for current information (especially for cutting-edge research, clinical trials, recent studies):
+- Use numbered citations [1], [2], etc. throughout your response
+- Include actual URLs from your search results
+- Format URLs as clickable markdown links: [URL text](URL) for better user experience
+- Prioritize: recent peer-reviewed journals, government health agencies, clinical trial databases, research institutions
+- Create a "**Verified Sources and References**" section with all URLs and publication details
+- Clearly state that the response includes recent internet research
+- Include specific URLs, DOIs, publication titles, author names, and dates
+
+For established medical knowledge not requiring current search:
+- Provide comprehensive information based on established medical literature
+- Do not include a sources section for general medical knowledge
+- Note: "This analysis combines established medical knowledge with current research where internet search was performed"
+
+Include specific examples, mention key research developments, and provide context for how this research impacts current medical practice. Balance scientific rigor with accessibility, ensuring the information is valuable for both healthcare professionals and informed patients.
+
+Remember to note that research is continually evolving, findings require validation, and patients should discuss cutting-edge options with their healthcare teams for personalized guidance."""
         
         # Generate the deep research response
         response, metadata = await self._generate_response(research_prompt, model=self.model)

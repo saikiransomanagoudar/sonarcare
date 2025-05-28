@@ -19,7 +19,7 @@ load_dotenv()
 class SonarAgent:
     """
     Enhanced agent that interfaces with the Perplexity Sonar API to generate medical advice responses.
-    Supports streaming responses and proper formatting.
+    Supports streaming responses and proper formatting with source citations.
     """
     
     def __init__(self):
@@ -38,58 +38,114 @@ class SonarAgent:
             # Initialize the Perplexity client
             self.client = PerplexityClient(key=self.api_key)
         
-        # System prompt for medical advice
+        # Enhanced system prompt for comprehensive medical advice with sources
         self.system_prompt = """
-        You are SonarCare, an AI medical assistant designed to provide helpful, accurate, and evidence-based 
-        information about health topics. 
+        You are SonarCare, an advanced AI medical assistant designed to provide comprehensive, accurate, and evidence-based 
+        information about health topics. Your mission is to deliver maximum value through detailed, well-researched responses
+        with proper citations and sources when you perform internet searches.
         
-        Guidelines:
-        1. Provide evidence-based information from reputable medical sources when possible.
-        2. Include a brief recommendation to consult healthcare professionals when appropriate.
-        3. Be empathetic and supportive while maintaining professionalism.
-        4. For urgent or emergency symptoms, advise seeking immediate medical attention.
-        5. Be transparent about limitations of AI medical information.
-        6. Prioritize patient safety in all responses.
-        7. Do not make definitive diagnoses or prescribe specific treatments.
-        8. Avoid lengthy disclaimers - keep professional recommendations brief and natural.
+        CORE PRINCIPLES:
+        1. COMPREHENSIVE INFORMATION: Provide thorough, detailed responses that cover all relevant aspects of the health topic
+        2. EVIDENCE-BASED: Draw from reputable medical sources, current research, and established medical guidelines
+        3. PRACTICAL VALUE: Include actionable information, management strategies, and clear guidance
+        4. SAFETY FIRST: Prioritize patient safety and clearly indicate when immediate medical attention is needed
+        5. EMPATHETIC CARE: Be understanding, supportive, and sensitive to the user's concerns
+        6. EDUCATIONAL: Help users understand their health better with clear explanations
+        7. TRANSPARENT SOURCING: When you search the internet, always provide and cite your sources with actual URLs
         
-        FORMATTING REQUIREMENTS:
-        - Use clear, conversational language
-        - Avoid numbered references like [1], [2], etc.
-        - Do not include hyperlinks or URLs
-        - Structure information with clear section headers when appropriate
-        - Write in complete, flowing sentences with proper paragraphs
-        - Use markdown formatting for emphasis (**bold**, *italic*)
-        - Organize complex information with proper sections
-        - Ensure all markdown formatting is properly closed
-        - End responses cleanly without trailing formatting marks
+        RESPONSE REQUIREMENTS - PROVIDE MAXIMUM INFORMATION:
         
-        RESPONSE STRUCTURE:
-        For medical queries, organize your response with clear sections such as:
-        - Brief explanation of the condition/topic
-        - Common causes or symptoms
-        - General management recommendations
-        - When to seek medical attention
-        - Brief mention of consulting healthcare professionals (keep it natural and brief)
+        For SYMPTOMS/CONDITIONS:
+        - Detailed explanation of the condition and its mechanisms
+        - Comprehensive list of potential causes (common and less common)
+        - Full spectrum of symptoms and their variations
+        - Risk factors and predisposing conditions
+        - Natural progression and typical timeline
+        - Complications to be aware of
+        - Demographics most affected
+        - Relationship to other conditions
         
-        Remember: You provide general information. Keep professional recommendations brief and integrated naturally into the response.
+        For TREATMENTS/MANAGEMENT:
+        - Multiple treatment approaches (medical, lifestyle, alternative when appropriate)
+        - Specific medications commonly used (with general information about mechanisms)
+        - Lifestyle modifications and their evidence base
+        - Preventive measures and their effectiveness
+        - Self-care strategies with specific instructions
+        - Expected outcomes and timelines
+        - Monitoring recommendations
+        - When to follow up with healthcare providers
+        
+        For DIAGNOSTIC INFORMATION:
+        - Tests commonly used for diagnosis
+        - What each test involves and what it measures
+        - Typical findings and their significance
+        - Differential diagnoses to consider
+        - When specific tests are indicated
+        
+        For EMERGENCY/URGENT SITUATIONS:
+        - Clear red flags requiring immediate attention
+        - Emergency vs urgent vs routine care distinctions
+        - What to expect in emergency settings
+        - How to communicate symptoms effectively to healthcare providers
+        
+        ENHANCED FORMATTING STRUCTURE:
+        Always organize comprehensive responses with clear sections:
+        - **Understanding [Condition/Topic]**: Detailed explanation and background
+        - **Causes and Risk Factors**: Comprehensive list with explanations
+        - **Symptoms and Manifestations**: Full spectrum of presentations
+        - **Management and Treatment Options**: Multiple approaches with details
+        - **Lifestyle and Self-Care**: Specific actionable recommendations
+        - **When to Seek Medical Attention**: Clear guidelines with urgency levels
+        - **Prevention and Long-term Outlook**: Forward-looking guidance
+        - **Working with Healthcare Providers**: How to optimize medical care
+        
+        SOURCE CITATION REQUIREMENTS (ONLY WHEN INTERNET SEARCH IS PERFORMED):
+        - IF you searched the internet for current information, use numbered citations [1], [2], etc. within the text
+        - IF you performed web search, include a "**Verified Sources and References**" section at the end
+        - Include actual URLs, publication titles, organization names, and dates from your search results
+        - Format URLs as clickable markdown links: [URL text](URL) for better user experience
+        - Prioritize sources from: medical journals, government health agencies, professional medical organizations,
+          established medical institutions, peer-reviewed research, clinical guidelines
+        - Clearly state: "This response includes information from recent internet research" when applicable
+        - IF you did NOT search the internet, do NOT include a sources section - simply provide comprehensive information based on medical knowledge
+        
+        COMMUNICATION GUIDELINES:
+        - Use clear, accessible language while maintaining medical accuracy
+        - Explain medical terms when first used
+        - Provide specific examples and practical details
+        - Include relevant statistics and prevalence when helpful
+        - Address common concerns and misconceptions
+        - Be thorough but well-organized for easy reading
+        - Only mention sources when you actually searched for current information online
+        
+        SAFETY AND LIMITATIONS:
+        - Clearly distinguish between general information and personalized medical advice
+        - Emphasize the importance of professional medical evaluation for diagnosis and treatment
+        - Note when symptoms require urgent or emergency care
+        - Acknowledge limitations of AI-provided information
+        - Encourage informed healthcare discussions
+        - Provide sources only when you performed internet research
+        
+        QUALITY STANDARDS:
+        - Ensure all information is current and evidence-based
+        - Avoid outdated or deprecated medical practices
+        - Include multiple perspectives when there are different treatment approaches
+        - Provide context for controversial or evolving areas of medicine
+        - Balance thoroughness with clarity and readability
+        - Include verifiable sources and references ONLY when you searched the internet
+        
+        Remember: Your goal is to provide maximum value through comprehensive, well-researched responses that empower users 
+        to make informed decisions about their health while maintaining appropriate safety boundaries. Only include sources
+        and citations when you actually performed internet research to gather current information.
         """
     
     def _clean_response_formatting(self, text: str) -> str:
-        """Clean up the response to improve readability and structure."""
-        # Remove numbered references like [1], [2], etc.
-        text = re.sub(r'\[\d+\]', '', text)
-        
-        # Remove URLs but keep the link text
-        text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', text)
-        
-        # Remove citation patterns
-        text = re.sub(r'\(Source:.*?\)', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'Sources?:.*$', '', text, flags=re.MULTILINE | re.IGNORECASE)
-        
-        # Fix incomplete markdown formatting
-        text = re.sub(r'\*\*([^*]+)$', r'**\1**', text)  # Close incomplete bold
-        text = re.sub(r'\*([^*]+)$', r'*\1*', text)  # Close incomplete italic
+        """
+        Clean up the response to improve readability while preserving sources and citations.
+        This version preserves numbered references and links instead of removing them.
+        """
+        # Preserve numbered references like [1], [2], etc. - these are important citations
+        # Keep URLs - these are valuable source links
         
         # Improve structure with proper spacing
         text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Normalize paragraph breaks
@@ -104,7 +160,100 @@ class SonarAgent:
         # Ensure proper section headers
         text = re.sub(r'(\n|^)([A-Z][^.!?]*):(\s|$)', r'\1**\2:**\3', text)  # Bold section headers
         
+        # Fix incomplete markdown formatting - but avoid adding extra asterisks to properly formatted text
+        # Only close incomplete bold if there's an odd number of ** sequences
+        if text.count('**') % 2 == 1:
+            text = re.sub(r'\*\*([^*]+)$', r'**\1**', text)
+        # Only close incomplete italic if there's an odd number of single * (excluding those that are part of **)
+        single_asterisks = len(re.findall(r'(?<!\*)\*(?!\*)', text))
+        if single_asterisks % 2 == 1:
+            text = re.sub(r'(?<!\*)\*([^*]+)$', r'*\1*', text)
+        
         return text.strip()
+    
+    def _extract_and_format_sources(self, response_data: Any) -> Tuple[str, List[str]]:
+        """
+        Extract sources from Perplexity API response and format them properly.
+        Only creates a sources section when actual URLs from internet search are found.
+        
+        Args:
+            response_data: The full response data from Perplexity API
+            
+        Returns:
+            Tuple of (sources_section, source_urls)
+        """
+        sources = []
+        source_urls = []
+        
+        def format_url_as_link(url: str) -> str:
+            """Format URL as a clickable markdown link with readable text."""
+            # Create readable link text based on domain
+            if 'mayoclinic.org' in url:
+                link_text = "Mayo Clinic"
+            elif 'pubmed.ncbi.nlm.nih.gov' in url:
+                link_text = "PubMed / NCBI"
+            elif 'nih.gov' in url:
+                link_text = "National Institutes of Health"
+            elif 'cdc.gov' in url:
+                link_text = "Centers for Disease Control"
+            elif 'who.int' in url:
+                link_text = "World Health Organization"
+            elif 'webmd.com' in url:
+                link_text = "WebMD"
+            elif 'cochranelibrary.com' in url:
+                link_text = "Cochrane Library"
+            elif 'ama-assn.org' in url:
+                link_text = "American Medical Association"
+            elif 'cms.gov' in url:
+                link_text = "Centers for Medicare & Medicaid Services"
+            elif 'fda.gov' in url:
+                link_text = "U.S. Food and Drug Administration"
+            elif 'cancer.gov' in url:
+                link_text = "National Cancer Institute"
+            elif 'heart.org' in url:
+                link_text = "American Heart Association"
+            elif 'diabetes.org' in url:
+                link_text = "American Diabetes Association"
+            else:
+                # Extract domain name as fallback
+                try:
+                    from urllib.parse import urlparse
+                    domain = urlparse(url).netloc
+                    link_text = domain.replace('www.', '')
+                except:
+                    link_text = url
+            
+            return f"[{link_text}]({url})"
+        
+        # Check if response_data has citations (for actual API responses)
+        if hasattr(response_data, 'citations') and response_data.citations:
+            for i, citation in enumerate(response_data.citations, 1):
+                # Only include if it's an actual URL
+                if citation.startswith(('http://', 'https://')):
+                    # Format as clickable markdown link with readable text
+                    formatted_link = format_url_as_link(citation)
+                    sources.append(f"[{i}] {formatted_link}")
+                    source_urls.append(citation)
+        elif isinstance(response_data, dict) and 'citations' in response_data:
+            for i, citation in enumerate(response_data['citations'], 1):
+                # Only include if it's an actual URL
+                if citation.startswith(('http://', 'https://')):
+                    # Format as clickable markdown link with readable text
+                    formatted_link = format_url_as_link(citation)
+                    sources.append(f"[{i}] {formatted_link}")
+                    source_urls.append(citation)
+        
+        # Only create sources section if we have actual URLs from internet search
+        if sources and len(source_urls) > 0:
+            sources_section = "\n\n**Verified Sources and References:**\n\n"
+            sources_section += "This response includes information from recent internet research. You can verify the information using these sources:\n\n"
+            for source in sources:
+                sources_section += f"• {source}\n"
+            sources_section += "\n*Please verify information with these sources and consult healthcare professionals for personalized medical advice.*"
+            return sources_section, source_urls
+        
+        # No sources section if no internet URLs were found
+        return "", []
     
     async def generate_response(
         self, 
@@ -112,7 +261,7 @@ class SonarAgent:
         message_history: List[Dict[str, Any]]
     ) -> Tuple[str, Dict[str, Any]]:
         """
-        Generate a response using the Perplexity Sonar API.
+        Generate a response using the Perplexity Sonar API with proper source handling.
         
         Args:
             query: The current user query
@@ -137,8 +286,16 @@ class SonarAgent:
             # Call the PerplexiPy client
             response_text = self.client.query("\n".join(messages))
             
-            # Clean the response formatting
+            # For PerplexiPy, we might not get structured response data with citations
+            # The client may return just text, so we'll handle this gracefully
+            sources_section, source_urls = self._extract_and_format_sources(None)
+            
+            # Clean the response formatting while preserving citations
             response_text = self._clean_response_formatting(response_text)
+            
+            # Add sources section if we have any
+            if sources_section:
+                response_text += sources_section
             
             # Create metadata for compatibility
             metadata = {
@@ -150,7 +307,10 @@ class SonarAgent:
                     "completion": len(response_text.split()),
                     "total": len(query.split()) + len(response_text.split())
                 },
-                "formatted": True
+                "formatted": True,
+                "sources": source_urls,
+                "has_sources": len(source_urls) > 0,
+                "grounded": len(source_urls) > 0
             }
             
             return response_text, metadata
@@ -165,7 +325,7 @@ class SonarAgent:
         message_history: List[Dict[str, Any]]
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Generate a streaming response for real-time display.
+        Generate a streaming response for real-time display with proper source handling.
         
         Args:
             query: The current user query
@@ -261,7 +421,8 @@ class SonarAgent:
         message_history: List[Dict[str, Any]]
     ) -> Tuple[str, Dict[str, Any]]:
         """
-        Generate a mock response for development without API keys.
+        Generate a dynamic, comprehensive mock response for development without API keys.
+        Only includes mock sources when simulating internet research scenarios.
         
         Args:
             query: The current user query
@@ -273,87 +434,204 @@ class SonarAgent:
         # Add a slight delay to simulate API call
         await asyncio.sleep(0.5)
         
-        # Simple keyword-based mock responses
-        response_text = "I'm SonarCare, your medical assistant. I provide general health information to help you make informed decisions about your health. Please remember that this information is for educational purposes only and not a substitute for professional medical advice. Always consult with a healthcare professional for proper diagnosis and treatment."
-        
+        # Analyze the query to determine the type of response needed
         query_lower = query.lower()
         
-        if any(word in query_lower for word in ["headache", "head pain", "migraine"]):
-            response_text = """**Understanding Headaches**
-
-Headaches are a common health concern that can have various causes. They may result from stress, tension, dehydration, lack of sleep, eye strain, or changes in routine. Some headaches can also be triggered by certain foods, hormonal changes, or environmental factors.
-
-**General Management Options**
-
-For mild headaches, you might find relief through rest in a quiet, dark room, staying well-hydrated, applying a cold or warm compress to your head or neck, and practicing relaxation techniques. Over-the-counter pain relievers may also help when used as directed.
-
-**When to Seek Medical Attention**
-
-It's important to seek medical attention if you experience severe headaches, headaches with fever or stiff neck, sudden onset of the worst headache of your life, headaches following a head injury, or if your headache pattern changes significantly. A healthcare professional can properly evaluate your symptoms and recommend appropriate treatment.
-
-*Please remember this is general information only and not a substitute for professional medical advice.*"""
+        # Check if this query would require internet research
+        needs_internet_research = any(word in query_lower for word in [
+            "latest", "recent", "new", "current", "breakthrough", "research", 
+            "study", "trial", "hospital", "clinic", "doctor", "specialist",
+            "treatment options", "new medication", "clinical trial"
+        ])
         
-        elif any(word in query_lower for word in ["fever", "temperature", "hot"]):
-            response_text = """**Understanding Fever**
+        # Generate response based on query type
+        if any(word in query_lower for word in ["hello", "hi", "hey", "greetings", "start"]):
+            response_text = """**Welcome to SonarCare**
 
-Fever is your body's natural response to fighting infection or illness. For adults, a temperature above 100.4°F (38°C) is generally considered a fever. Common causes include viral or bacterial infections, though other conditions can also cause elevated body temperature.
+Hello! I'm SonarCare, your comprehensive AI medical assistant with advanced research capabilities. I provide detailed, evidence-based health information, and when I search the internet for current information, I'll provide you with verified sources and links.
 
-**Management Strategies**
+**Enhanced Research Capabilities**
 
-When managing a fever, it's helpful to rest, drink plenty of fluids to prevent dehydration, dress in lightweight clothing, and consider fever-reducing medications like acetaminophen or ibuprofen if appropriate for you. Taking lukewarm baths or using cool compresses can also provide comfort.
+I can provide comprehensive information about:
+- **Symptoms and Conditions**: Detailed explanations based on established medical knowledge
+- **Treatment Options**: Evidence-based approaches from clinical guidelines
+- **Preventive Care**: Strategies backed by medical research
+- **Medical Departments**: Guidance on healthcare specialties
+- **Emergency Situations**: Clear protocols based on medical guidelines
+- **Health Education**: In-depth explanations from medical knowledge
 
-**When to Seek Immediate Care**
+**Internet Research & Source Verification**
 
-You should seek immediate medical attention if you have a high fever (over 103°F/39.4°C), if the fever persists for more than three days, or if it's accompanied by severe symptoms like difficulty breathing, persistent vomiting, severe headache, chest pain, or signs of dehydration. People with compromised immune systems, chronic conditions, or those taking certain medications should consult their healthcare provider sooner.
+When I need to search for current information, I will:
+- Provide numbered citations [1], [2], etc. throughout my response
+- Include a "Verified Sources and References" section with actual URLs
+- Clearly indicate that the response includes internet research
+- Link to medical journals, health organizations, and authoritative sources
 
-*This information is for educational purposes only and should not replace professional medical advice.*"""
+**Important Medical Disclaimer**
+
+I provide general health information for educational purposes. When I search the internet, I'll provide verifiable sources. This information is not a substitute for professional medical advice, diagnosis, or treatment. Always consult with qualified healthcare providers for personalized medical guidance.
+
+What health topic would you like me to help you with today?"""
+            
+            # No sources for greeting - it's based on general capabilities
+            mock_sources = []
+            
+        else:
+            # For medical queries, determine if mock internet research is needed
+            if needs_internet_research:
+                response_text = f"""**Understanding Your Health Concern**
+
+Thank you for your question about {self._extract_topic_from_query(query)}. For this type of query, I would normally search current medical research and authoritative sources to provide you with the most up-to-date information.
+
+**Simulated Internet Research Response**
+
+In a live environment, I would search for and provide:
+
+**Current Medical Guidelines**: Latest recommendations from medical organizations and professional societies regarding {self._extract_topic_from_query(query)} [1].
+
+**Recent Research Findings**: Current studies and clinical trials that inform best practices for diagnosis and treatment [2].
+
+**Healthcare Facility Information**: Quality ratings, services available, and patient reviews from verified databases [3].
+
+**Professional Resources**: Links to specialist directories and medical board certifications [4].
+
+**Clinical Evidence**: Peer-reviewed research and evidence-based treatment protocols [5].
+
+**Professional Medical Advice Needed**
+
+For your specific situation, I recommend consulting with a healthcare provider who can:
+- Perform a proper medical evaluation
+- Consider your individual medical history
+- Provide personalized treatment recommendations
+- Monitor your progress and adjust care as needed
+
+**Verified Sources and References**
+
+This response includes information from recent internet research. You can verify the information using these sources:
+
+• [1] [Mayo Clinic](https://www.mayoclinic.org/diseases-conditions)
+• [2] [PubMed / NCBI](https://pubmed.ncbi.nlm.nih.gov/)
+• [3] [Centers for Medicare & Medicaid Services](https://www.cms.gov/Medicare/Provider-Enrollment-and-Certification/CertificationandComplianc/Hospitals)
+• [4] [American Medical Association](https://www.ama-assn.org/practice-management/physician-resources/physician-finder)
+• [5] [Cochrane Library](https://www.cochranelibrary.com/)
+
+*Please verify information with these sources and consult healthcare professionals for personalized medical advice.*
+
+*This is a development mode simulation. In live operation, I would provide actual current research findings and real-time source citations.*"""
+                
+                # Include mock sources for research-type queries
+                mock_sources = [
+                    "https://www.mayoclinic.org/diseases-conditions",
+                    "https://pubmed.ncbi.nlm.nih.gov/",
+                    "https://www.cms.gov/Medicare/Provider-Enrollment-and-Certification/CertificationandComplianc/Hospitals",
+                    "https://www.ama-assn.org/practice-management/physician-resources/physician-finder",
+                    "https://www.cochranelibrary.com/"
+                ]
+            else:
+                # For general medical knowledge queries, no internet research needed
+                response_text = f"""**Understanding {self._extract_topic_from_query(query).title()}**
+
+Based on established medical knowledge, I can provide you with comprehensive information about {self._extract_topic_from_query(query)}.
+
+**Medical Background**
+
+This topic involves several important aspects that are well-documented in medical literature and clinical practice guidelines.
+
+**Key Information**
+
+- **Detailed Explanation**: Comprehensive overview of the condition, its mechanisms, and how it affects the body
+- **Symptoms and Signs**: Full spectrum of presentations and manifestations
+- **Causes and Risk Factors**: Known contributing factors and predisposing conditions
+- **Management Approaches**: Evidence-based treatment options and interventions
+- **Lifestyle Considerations**: Practical recommendations for daily management
+- **When to Seek Care**: Clear guidelines for medical consultation
+
+**Professional Medical Advice**
+
+While this information is based on established medical knowledge, individual cases vary significantly. For personalized guidance:
+- Consult with qualified healthcare providers
+- Discuss your specific symptoms and medical history
+- Follow professional medical recommendations
+- Seek appropriate specialist care when needed
+
+**Additional Resources**
+
+For the most current research and guidelines, consider consulting:
+- Your healthcare provider
+- Reputable medical organizations
+- Peer-reviewed medical literature
+- Professional medical societies
+
+*This response is based on general medical knowledge and does not include internet research. For current studies or facility-specific information, please let me know if you'd like me to search for recent updates.*"""
+                
+                # No sources for general knowledge responses
+                mock_sources = []
         
-        elif any(word in query_lower for word in ["diabetes", "blood sugar", "insulin"]):
-            response_text = """**Understanding Diabetes**
-
-Diabetes is a chronic condition that affects how your body processes blood glucose (sugar). There are several types, with Type 1 and Type 2 being the most common. Type 1 diabetes typically develops when the body cannot produce insulin, while Type 2 diabetes occurs when the body doesn't use insulin effectively or doesn't produce enough.
-
-**Management Approaches**
-
-Managing diabetes typically involves monitoring blood sugar levels, following a balanced diet, engaging in regular physical activity, and taking medications as prescribed by your healthcare provider. Many people with diabetes lead healthy, active lives with proper management and medical care.
-
-**Working with Healthcare Professionals**
-
-It's essential to work closely with your healthcare team, which may include your primary care physician, an endocrinologist, a diabetes educator, and a nutritionist. They can help you develop a personalized management plan, teach you how to monitor your blood sugar, and adjust your treatment as needed. Regular check-ups are important for preventing complications and maintaining good health.
-
-*This information is for educational purposes only. Please consult with healthcare professionals for personalized diabetes management.*"""
-        
-        elif any(word in query_lower for word in ["hospital", "emergency", "near me", "location", "find"]):
-            response_text = """**Finding Nearby Hospitals**
-
-I can't access your exact location, but I can guide you on how to quickly find nearby hospitals based on evidence-based health resources and best practices.
-
-**How to Find Nearby Hospitals**
-
-**Use Online Maps:** Enter "hospital" or "emergency room" in your phone's map application (like Google Maps or Apple Maps). This will show you the closest facilities with directions and estimated travel times.
-
-**Ask for Local Assistance:** If you are able, ask a neighbor, friend, or local service for recommendations on nearest hospitals.
-
-**Use Official Health Resources:** Many health departments provide online hospital directories with current information about services and wait times.
-
-**Check Health Insurance Information:** If you have health insurance, your provider's website or member portal may have a tool to help you find in-network hospitals nearby.
-
-**When to Seek Emergency Care**
-
-For urgent symptoms, it's best to get to the closest hospital as quickly as possible. If you are unable to get there on your own, call emergency services (such as 911 in the United States) for immediate help. 
-
-*Remember, your safety is the most important factor. Please don't delay seeking care if your symptoms are severe.*"""
-        
-        # Create mock metadata
+        # Create metadata based on whether sources are included
         metadata = {
-            "model": "mock-sonar",
+            "model": "enhanced-mock-sonar-conditional-sources",
             "tokens": {
                 "prompt": len(query.split()),
                 "completion": len(response_text.split()),
                 "total": len(query.split()) + len(response_text.split())
             },
-            "formatted": True,
-            "mock": True
+            "response_type": "comprehensive",
+            "enhanced_system": True,
+            "mock": True,
+            "sources": mock_sources,
+            "has_sources": len(mock_sources) > 0,
+            "grounded": len(mock_sources) > 0,
+            "internet_research_simulated": needs_internet_research,
+            "query_analysis": {
+                "topic_extracted": self._extract_topic_from_query(query),
+                "needs_research": needs_internet_research,
+                "response_structure": "comprehensive_medical_format_conditional_sources"
+            }
         }
         
         return response_text, metadata
+    
+    def _extract_topic_from_query(self, query: str) -> str:
+        """Extract the main health topic from a query for better response contextualization."""
+        query_lower = query.lower()
+        
+        # Common health topics mapping
+        health_topics = {
+            "headache": "headaches and head pain",
+            "migraine": "migraines and headache disorders",
+            "fever": "fever and temperature regulation",
+            "pain": "pain management",
+            "cough": "respiratory symptoms",
+            "cold": "common cold and viral infections",
+            "flu": "influenza and viral illnesses",
+            "diabetes": "diabetes and blood sugar management",
+            "blood pressure": "hypertension and cardiovascular health",
+            "heart": "cardiovascular health",
+            "stomach": "digestive health",
+            "anxiety": "mental health and anxiety",
+            "depression": "mental health and mood disorders",
+            "sleep": "sleep disorders and sleep health",
+            "diet": "nutrition and dietary health",
+            "exercise": "physical activity and fitness",
+            "weight": "weight management and metabolism",
+            "skin": "dermatological health",
+            "eyes": "eye health and vision",
+            "ears": "hearing and ear health",
+            "back": "back pain and spinal health",
+            "joint": "joint health and arthritis",
+            "infection": "infections and immune health",
+            "allergy": "allergies and immune responses",
+            "medication": "medication information and drug interactions",
+            "vitamin": "vitamins and nutritional supplements",
+            "pregnancy": "pregnancy and reproductive health",
+            "child": "pediatric health and child development"
+        }
+        
+        # Find matching topics
+        for keyword, topic in health_topics.items():
+            if keyword in query_lower:
+                return topic
+        
+        # Default return
+        return "your health concern"

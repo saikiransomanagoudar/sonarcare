@@ -48,18 +48,93 @@ Response format: Only output the extracted condition or symptom - nothing else."
         condition = await self._extract_condition(query)
         
         # Build the department search prompt
-        department_prompt = f"""What medical department or specialist typically treats {condition}?
+        department_prompt = f"""Provide comprehensive information about medical specialties and departments for {condition}.
 
-Provide information on:
-1. The primary medical specialty or department that handles this condition
-2. Any subspecialties that might be relevant
-3. The type of doctor to consult initially (e.g., general practitioner, specialist)
-4. When to consider emergency care versus scheduled appointments
-5. What to expect during an initial consultation
+**PRIMARY MEDICAL SPECIALTIES:**
+Identify and explain the main medical specialty or department that typically treats {condition}, including:
+- Primary specialty name and focus area
+- Sub-specialties within this field that may be relevant
+- Training and expertise of specialists in this field
+- Common procedures and treatments they perform
+- Typical patient populations they serve
 
-Format your response as helpful advice from a medical assistant, emphasizing that this is general information and the appropriate specialist may vary based on individual circumstances and healthcare systems in different countries.
+**HEALTHCARE PROVIDER HIERARCHY:**
+Explain the appropriate healthcare pathway:
+- When to start with a primary care physician vs. specialist
+- Referral processes and requirements
+- How specialists work with primary care teams
+- Coordination between different specialties when multiple are involved
+- Role of mid-level providers (nurse practitioners, physician assistants)
 
-Be clear about common medical practice while acknowledging that referral processes may differ between healthcare systems."""
+**DETAILED SPECIALTY INFORMATION:**
+For each relevant medical specialty, provide:
+- Full specialty name and common abbreviations
+- Specific conditions and symptoms they treat
+- Training requirements and board certifications
+- Sub-specialties and fellowship areas
+- Typical diagnostic tools and procedures they use
+- Treatment approaches and philosophies
+- When referrals to this specialty are indicated
+
+**CONSULTATION PROCESS:**
+Provide detailed information about:
+- How to obtain referrals and appointments
+- What to expect during initial consultations
+- Questions specialists typically ask
+- Examinations and tests commonly performed
+- Timeline for diagnosis and treatment planning
+- Follow-up care and ongoing management approaches
+
+**PREPARATION FOR APPOINTMENTS:**
+Include comprehensive guidance on:
+- Medical history information to compile
+- Symptoms to track and document
+- Questions to prepare for the specialist
+- Documents and test results to bring
+- Insurance considerations and pre-authorization
+- What family members or caregivers should know
+
+**MULTIDISCIPLINARY CARE:**
+Explain when multiple specialties may be involved:
+- Conditions requiring team-based care
+- How different specialists coordinate treatment
+- Role of case managers and care coordinators
+- Integration with other healthcare services (pharmacy, physical therapy, etc.)
+- Communication between providers and patient advocacy
+
+**URGENT VS. ROUTINE CARE:**
+Provide clear guidance on:
+- Conditions requiring immediate specialist attention
+- Emergency vs. urgent vs. routine specialist care
+- How to access urgent specialty consultations
+- When emergency department referral is appropriate
+- Triage processes and priority systems
+
+**SECOND OPINIONS AND ALTERNATIVES:**
+Include information about:
+- When to consider second opinions
+- How to obtain additional specialist perspectives
+- Alternative treatment approaches to discuss
+- Integrative and complementary medicine options
+- Patient rights regarding treatment choices
+
+**HEALTHCARE SYSTEM NAVIGATION:**
+Provide practical advice on:
+- Understanding different healthcare settings (academic vs. community)
+- Finding specialists within insurance networks
+- Researching physician credentials and experience
+- Patient portal systems and communication
+- Advocating for appropriate and timely care
+
+**GLOBAL HEALTHCARE CONSIDERATIONS:**
+Acknowledge that:
+- Healthcare systems vary by country and region
+- Referral processes may differ between healthcare systems
+- Insurance and payment systems vary globally
+- Cultural considerations in specialist care
+- Telemedicine and remote consultation options
+
+Format the response to be comprehensive yet organized, providing maximum value for healthcare decision-making while acknowledging regional variations in healthcare delivery."""
         
         # Generate the department recommendation
         response, metadata = await self._generate_response(department_prompt, model=self.model)

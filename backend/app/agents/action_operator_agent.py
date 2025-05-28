@@ -33,7 +33,8 @@ class ActionOperatorAgent(BaseActionAgent):
         "symptom_inquiry": ["symptoms", "feeling", "pain", "ache", "hurt", "sick", "unwell", "fever", "headache", "nausea"],
         "treatment_advice": ["treatment", "medicine", "medication", "cure", "therapy", "remedy", "how to treat"],
         "hospital_search": ["hospital", "clinic", "medical center", "doctor near", "find doctor", "where can i"],
-        "department_inquiry": ["which doctor", "what specialist", "department", "who should i see", "what kind of doctor"]
+        "department_inquiry": ["which doctor", "what specialist", "department", "who should i see", "what kind of doctor"],
+        "deep_medical_inquiry": ["research", "breakthrough", "study", "studies", "clinical trial", "latest", "recent", "new research", "scientific", "advancement", "discovery", "findings", "evidence", "investigation", "cutting-edge", "innovation", "development", "progress", "emerging", "novel", "current research", "medical research", "breakthroughs"]
     }
     
     def __init__(self):
@@ -61,6 +62,10 @@ class ActionOperatorAgent(BaseActionAgent):
         # Check for greeting patterns
         if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["greeting"]):
             return "greeting"
+        
+        # Check for deep medical inquiry patterns (should be checked early)
+        if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["deep_medical_inquiry"]):
+            return "deep_medical_inquiry"
         
         # Check for symptom inquiry patterns
         if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["symptom_inquiry"]):
@@ -147,9 +152,24 @@ class ActionOperatorAgent(BaseActionAgent):
         # Simplified prompt for faster processing
         prompt = f"""Classify this medical query into ONE category:
         
-Categories: greeting, symptom_inquiry, treatment_advice, hospital_search, department_inquiry, deep_medical_inquiry, unbiased_factual_request, unknown
+Categories: 
+- greeting: Basic greetings and introductions
+- symptom_inquiry: Questions about symptoms, feeling sick, pain, discomfort
+- treatment_advice: Questions about treating specific conditions or symptoms
+- hospital_search: Looking for hospitals, clinics, doctors, medical facilities
+- department_inquiry: Which medical specialist or department to see
+- deep_medical_inquiry: Research, breakthroughs, studies, latest developments, scientific findings, clinical trials, cutting-edge treatments, medical innovations, recent advances
+- unbiased_factual_request: Requests for balanced, factual information on controversial topics
+- unknown: Does not fit any category
 
 Query: "{query}"
+
+Examples:
+"cancer research breakthroughs" → deep_medical_inquiry
+"latest treatment for diabetes" → deep_medical_inquiry
+"recent studies on heart disease" → deep_medical_inquiry
+"I have a headache" → symptom_inquiry
+"find hospitals near me" → hospital_search
 
 Return only the category name."""
         
