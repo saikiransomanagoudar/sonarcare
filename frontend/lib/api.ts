@@ -85,10 +85,26 @@ export const deleteChatSession = async (sessionId: string): Promise<void> => {
   }
 };
 
-// Update a chat session title
+// Update a chat session title (legacy function - keeping for compatibility)
 export const updateSessionTitle = async (sessionId: string, title: string): Promise<ChatSession> => {
   return fetchAPI<ChatSession>(`/api/v1/chat/session/${sessionId}`, {
     method: 'PATCH',
     body: JSON.stringify({ title }),
   });
-}; 
+};
+
+// Update a chat session (more flexible - can update title, summary, etc.)
+export const updateChatSession = async (
+  sessionId: string, 
+  updates: { title?: string; summary?: string }
+): Promise<ChatSession> => {
+  return fetchAPI<ChatSession>(`/api/v1/chat/session/${sessionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+};
+
+// Get a specific chat session
+export const getChatSession = async (sessionId: string): Promise<ChatSession> => {
+  return fetchAPI<ChatSession>(`/api/v1/chat/session/${sessionId}`);
+};
