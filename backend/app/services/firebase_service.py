@@ -107,7 +107,7 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
             "userId": user_id,
             "createdAt": now_iso,
             "lastActivityAt": now_iso,
-            "title": "New Chat",
+            "title": None,
             "summary": None
         }
     
@@ -116,7 +116,7 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
         "userId": user_id,
         "createdAt": now,
         "lastActivityAt": now,
-        "title": "New Chat",
+        "title": None,
     }
     
     # Firebase operations are not async, run them as is
@@ -138,7 +138,7 @@ async def get_session(session_id: str) -> Optional[Dict[str, Any]]:
             "userId": "mock-user-id",
             "createdAt": now_iso,
             "lastActivityAt": now_iso,
-            "title": "Mock Conversation",
+            "title": None,
             "summary": None
         }
     
@@ -161,7 +161,7 @@ async def get_sessions(user_id: str) -> List[Dict[str, Any]]:
             "userId": user_id,
             "createdAt": now_iso,
             "lastActivityAt": now_iso,
-            "title": f"Mock Conversation {i}",
+            "title": None,
             "summary": None
         } for i in range(3)]
     

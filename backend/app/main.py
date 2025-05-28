@@ -39,7 +39,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
@@ -108,8 +108,35 @@ async def health_check():
     return {
         "status": "healthy",
         "version": "0.2.0",
-        "features": ["streaming", "optimized_intent_detection", "caching"]
+        "features": ["streaming", "optimized_intent_detection", "caching", "parallel_processing"]
     }
+
+# New endpoint for performance monitoring
+@app.get("/performance")
+async def performance_stats():
+    """Get performance statistics for monitoring and optimization."""
+    try:
+        from app.services.optimized_streaming_service import optimized_service
+        
+        performance_data = optimized_service.get_performance_stats()
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "performance": performance_data,
+            "system": {
+                "version": "0.2.0",
+                "optimized_enabled": True,
+                "features": ["fast_intent_classification", "response_caching", "parallel_processing", "true_streaming"]
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting performance stats: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 # Socket.IO event handlers for streaming responses
 @sio.event
@@ -215,7 +242,7 @@ async def leave(sid, data):
 
 @sio.event
 async def message(sid, data):
-    """Handle incoming messages with streaming response support."""
+    """Handle incoming messages with optimized streaming response support."""
     try:
         logger.info(f"Received message from {sid}: {data}")
         
@@ -233,6 +260,7 @@ async def message(sid, data):
     message_text = data["text"].strip()
     session_id = data["sessionId"]
     user_id = data["userId"]
+    use_optimized = data.get("optimized", True)  # Default to optimized
     
     if not message_text:
         logger.warning(f"Empty message from {sid}")
@@ -277,16 +305,13 @@ async def message(sid, data):
         logger.error(f"Error saving user message to database: {str(save_error)}")
         # Continue processing even if save fails
     
-    logger.info(f"Processing message from {sid} in session {session_id}: {message_text[:50]}...")
+    logger.info(f"Processing message from {sid} in session {session_id}: {message_text[:50]}... (optimized: {use_optimized})")
     # Emit user message to all clients in the session
     await sio.emit("message", user_message, room=session_id)
     
     try:
         # Create a unique message ID for the bot response
         bot_message_id = str(uuid.uuid4())
-        
-        # Import the streaming chat service
-        from app.services.streaming_chat_service import process_message_streaming
         
         # Emit typing indicator
         await sio.emit("typing", {
@@ -295,103 +320,210 @@ async def message(sid, data):
             "timestamp": datetime.now().isoformat()
         }, room=session_id)
         
-        # Process the message with streaming
-        message_started = False
-        final_message = None
-        
-        async for chunk in process_message_streaming(message_text, session_id, user_id):
-            try:
-                if chunk["type"] == "status":
-                    # Emit status updates (analyzing, generating, etc.)
-                    await sio.emit("status", {
-                        "sessionId": session_id,
-                        "status": chunk["data"],
-                        "timestamp": datetime.now().isoformat()
-                    }, room=session_id)
-                    
-                elif chunk["type"] == "start":
-                    # Emit the start of the bot response
-                    bot_message_start = {
-                        "id": bot_message_id,
-                        "text": "",
-                        "sender": "bot",
-                        "sessionId": session_id,
-                        "userId": user_id,
-                        "timestamp": datetime.now().isoformat(),
-                        "metadata": chunk.get("metadata", {}),
-                        "streaming": True,
-                        "done": False
-                    }
-                    await sio.emit("message_start", bot_message_start, room=session_id)
-                    message_started = True
-                    
-                elif chunk["type"] == "chunk":
-                    # Emit incremental updates
-                    if message_started:
-                        try:
-                            await sio.emit("message_chunk", {
-                                "id": bot_message_id,
-                                "text": chunk["data"],
-                                "sessionId": session_id,
-                                "done": False,
-                                "timestamp": datetime.now().isoformat()
-                            }, room=session_id)
-                        except Exception as chunk_error:
-                            logger.error(f"Error emitting chunk: {str(chunk_error)}")
-                            # Continue processing even if a chunk fails
-                    
-                elif chunk["type"] == "end":
-                    # Emit the final complete message
-                    final_bot_message = {
-                        "id": bot_message_id,
-                        "text": chunk["data"],
-                        "sender": "bot",
-                        "sessionId": session_id,
-                        "userId": user_id,
-                        "timestamp": datetime.now().isoformat(),
-                        "metadata": chunk.get("metadata", {}),
-                        "streaming": False,
-                        "done": True
-                    }
-                    
-                    await sio.emit("message_complete", final_bot_message, room=session_id)
-                    final_message = chunk.get("message", final_bot_message)
-                    
-                    # Stop typing indicator
-                    await sio.emit("typing", {
-                        "sessionId": session_id,
-                        "typing": False,
-                        "timestamp": datetime.now().isoformat()
-                    }, room=session_id)
-                    
-                elif chunk["type"] == "error":
-                    # Handle streaming errors
-                    error_message = {
-                        "id": bot_message_id,
-                        "text": chunk["data"],
-                        "sender": "bot",
-                        "sessionId": session_id,
-                        "userId": user_id,
-                        "timestamp": datetime.now().isoformat(),
-                        "isError": True,
-                        "streaming": False,
-                        "done": True,
-                        "metadata": chunk.get("metadata", {})
-                    }
-                    await sio.emit("message_complete", error_message, room=session_id)
-                    
-                    # Stop typing indicator
-                    await sio.emit("typing", {
-                        "sessionId": session_id,
-                        "typing": False
-                    }, room=session_id)
-                    break
-                    
-            except Exception as emit_error:
-                logger.error(f"Error emitting chunk: {str(emit_error)}")
-                continue
-        
-        logger.info(f"Completed processing message from {sid}")
+        # Choose processing method based on optimization flag
+        if use_optimized:
+            # Use the new optimized streaming service
+            from app.services.optimized_streaming_service import optimized_service
+            
+            message_started = False
+            final_message = None
+            
+            async for chunk in optimized_service.process_message_optimized(message_text, session_id, user_id):
+                try:
+                    if chunk["type"] == "status":
+                        # Emit status updates (analyzing, generating, etc.)
+                        await sio.emit("status", {
+                            "sessionId": session_id,
+                            "status": chunk["data"],
+                            "timestamp": datetime.now().isoformat(),
+                            "optimized": True
+                        }, room=session_id)
+                        
+                    elif chunk["type"] == "start":
+                        # Emit the start of the bot response
+                        bot_message_start = {
+                            "id": bot_message_id,
+                            "text": "",
+                            "sender": "bot",
+                            "sessionId": session_id,
+                            "userId": user_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "metadata": {**chunk.get("metadata", {}), "optimized": True},
+                            "streaming": True,
+                            "done": False
+                        }
+                        await sio.emit("message_start", bot_message_start, room=session_id)
+                        message_started = True
+                        
+                    elif chunk["type"] == "chunk":
+                        # Emit incremental updates
+                        if message_started:
+                            try:
+                                await sio.emit("message_chunk", {
+                                    "id": bot_message_id,
+                                    "text": chunk["data"],
+                                    "sessionId": session_id,
+                                    "done": False,
+                                    "timestamp": datetime.now().isoformat(),
+                                    "optimized": True
+                                }, room=session_id)
+                            except Exception as chunk_error:
+                                logger.error(f"Error emitting optimized chunk: {str(chunk_error)}")
+                                # Continue processing even if a chunk fails
+                        
+                    elif chunk["type"] == "end":
+                        # Emit the final complete message
+                        final_bot_message = {
+                            "id": bot_message_id,
+                            "text": chunk["data"],
+                            "sender": "bot",
+                            "sessionId": session_id,
+                            "userId": user_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "metadata": {**chunk.get("metadata", {}), "optimized": True},
+                            "streaming": False,
+                            "done": True
+                        }
+                        
+                        await sio.emit("message_complete", final_bot_message, room=session_id)
+                        final_message = chunk.get("message", final_bot_message)
+                        
+                        # Stop typing indicator
+                        await sio.emit("typing", {
+                            "sessionId": session_id,
+                            "typing": False,
+                            "timestamp": datetime.now().isoformat()
+                        }, room=session_id)
+                        
+                    elif chunk["type"] == "error":
+                        # Handle streaming errors
+                        error_message = {
+                            "id": bot_message_id,
+                            "text": chunk["data"],
+                            "sender": "bot",
+                            "sessionId": session_id,
+                            "userId": user_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "isError": True,
+                            "streaming": False,
+                            "done": True,
+                            "metadata": {**chunk.get("metadata", {}), "optimized": True}
+                        }
+                        await sio.emit("message_complete", error_message, room=session_id)
+                        
+                        # Stop typing indicator
+                        await sio.emit("typing", {
+                            "sessionId": session_id,
+                            "typing": False
+                        }, room=session_id)
+                        break
+                        
+                except Exception as emit_error:
+                    logger.error(f"Error emitting optimized chunk: {str(emit_error)}")
+                    continue
+            
+            logger.info(f"Completed optimized processing message from {sid}")
+            
+        else:
+            # Fallback to original streaming service for compatibility
+            from app.services.streaming_chat_service import process_message_streaming
+            
+            message_started = False
+            final_message = None
+            
+            async for chunk in process_message_streaming(message_text, session_id, user_id):
+                try:
+                    if chunk["type"] == "status":
+                        # Emit status updates (analyzing, generating, etc.)
+                        await sio.emit("status", {
+                            "sessionId": session_id,
+                            "status": chunk["data"],
+                            "timestamp": datetime.now().isoformat()
+                        }, room=session_id)
+                        
+                    elif chunk["type"] == "start":
+                        # Emit the start of the bot response
+                        bot_message_start = {
+                            "id": bot_message_id,
+                            "text": "",
+                            "sender": "bot",
+                            "sessionId": session_id,
+                            "userId": user_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "metadata": chunk.get("metadata", {}),
+                            "streaming": True,
+                            "done": False
+                        }
+                        await sio.emit("message_start", bot_message_start, room=session_id)
+                        message_started = True
+                        
+                    elif chunk["type"] == "chunk":
+                        # Emit incremental updates
+                        if message_started:
+                            try:
+                                await sio.emit("message_chunk", {
+                                    "id": bot_message_id,
+                                    "text": chunk["data"],
+                                    "sessionId": session_id,
+                                    "done": False,
+                                    "timestamp": datetime.now().isoformat()
+                                }, room=session_id)
+                            except Exception as chunk_error:
+                                logger.error(f"Error emitting chunk: {str(chunk_error)}")
+                                # Continue processing even if a chunk fails
+                        
+                    elif chunk["type"] == "end":
+                        # Emit the final complete message
+                        final_bot_message = {
+                            "id": bot_message_id,
+                            "text": chunk["data"],
+                            "sender": "bot",
+                            "sessionId": session_id,
+                            "userId": user_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "metadata": chunk.get("metadata", {}),
+                            "streaming": False,
+                            "done": True
+                        }
+                        
+                        await sio.emit("message_complete", final_bot_message, room=session_id)
+                        final_message = chunk.get("message", final_bot_message)
+                        
+                        # Stop typing indicator
+                        await sio.emit("typing", {
+                            "sessionId": session_id,
+                            "typing": False,
+                            "timestamp": datetime.now().isoformat()
+                        }, room=session_id)
+                        
+                    elif chunk["type"] == "error":
+                        # Handle streaming errors
+                        error_message = {
+                            "id": bot_message_id,
+                            "text": chunk["data"],
+                            "sender": "bot",
+                            "sessionId": session_id,
+                            "userId": user_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "isError": True,
+                            "streaming": False,
+                            "done": True,
+                            "metadata": chunk.get("metadata", {})
+                        }
+                        await sio.emit("message_complete", error_message, room=session_id)
+                        
+                        # Stop typing indicator
+                        await sio.emit("typing", {
+                            "sessionId": session_id,
+                            "typing": False
+                        }, room=session_id)
+                        break
+                        
+                except Exception as emit_error:
+                    logger.error(f"Error emitting chunk: {str(emit_error)}")
+                    continue
+            
+            logger.info(f"Completed processing message from {sid}")
         
     except Exception as e:
         logger.error(f"Error processing streaming message from {sid}: {str(e)}")
@@ -413,7 +545,10 @@ async def message(sid, data):
             "isError": True,
             "streaming": False,
             "done": True,
-            "metadata": {"error": str(e)}
+            "metadata": {
+                "error": str(e),
+                "optimized": use_optimized
+            }
         }
         await sio.emit("message_complete", error_message, room=session_id)
 
