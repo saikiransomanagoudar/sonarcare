@@ -54,20 +54,29 @@ def doc_to_dict(doc):
     data = doc.to_dict()
     if data:
         data['id'] = doc.id
+        # Convert any datetime objects to ISO strings for consistent serialization
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                data[key] = value.isoformat()
     return data
 
-# Helper function to convert Firestore timestamps to Python datetimes
+# Helper function to convert Firestore timestamps to ISO strings
 def convert_firebase_timestamps(data):
-    """Convert Firebase DatetimeWithNanoseconds to Python datetime objects."""
+    """Convert Firebase DatetimeWithNanoseconds to ISO format strings."""
     if isinstance(data, dict):
         for key, value in list(data.items()):
             if hasattr(value, 'timestamp'):
                 # This is a Firebase timestamp of some kind
                 try:
-                    data[key] = datetime.fromtimestamp(value.timestamp())
+                    # Convert to datetime first, then to ISO string
+                    dt = datetime.fromtimestamp(value.timestamp())
+                    data[key] = dt.isoformat()
                 except (AttributeError, TypeError):
                     # If conversion fails, keep original
                     pass
+            elif isinstance(value, datetime):
+                # Convert regular datetime objects to ISO strings
+                data[key] = value.isoformat()
             elif isinstance(value, (dict, list)):
                 # Recursively process nested structures
                 data[key] = convert_firebase_timestamps(value)
@@ -76,9 +85,12 @@ def convert_firebase_timestamps(data):
         for i, item in enumerate(data):
             if hasattr(item, 'timestamp'):
                 try:
-                    data[i] = datetime.fromtimestamp(item.timestamp())
+                    dt = datetime.fromtimestamp(item.timestamp())
+                    data[i] = dt.isoformat()
                 except (AttributeError, TypeError):
                     pass
+            elif isinstance(item, datetime):
+                data[i] = item.isoformat()
             elif isinstance(item, (dict, list)):
                 data[i] = convert_firebase_timestamps(item)
     return data
@@ -89,11 +101,12 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
     """Create a new chat session"""
     if not db:
         # Mock implementation for development
+        now_iso = datetime.now().isoformat()
         return {
             "id": session_id,
             "userId": user_id,
-            "createdAt": datetime.now(),
-            "lastActivityAt": datetime.now(),
+            "createdAt": now_iso,
+            "lastActivityAt": now_iso,
             "title": "New Chat",
             "summary": None
         }
@@ -108,18 +121,23 @@ async def create_session(session_id: str, user_id: str) -> Dict[str, Any]:
     
     # Firebase operations are not async, run them as is
     db.collection("chatSessions").document(session_id).set(session_data)
+    
+    # Convert datetime objects to ISO strings before returning
     session_data["id"] = session_id
+    session_data["createdAt"] = now.isoformat()
+    session_data["lastActivityAt"] = now.isoformat()
     return session_data
 
 async def get_session(session_id: str) -> Optional[Dict[str, Any]]:
     """Get a chat session by ID"""
     if not db:
         # Mock implementation for development
+        now_iso = datetime.now().isoformat()
         return {
             "id": session_id,
             "userId": "mock-user-id",
-            "createdAt": datetime.now(),
-            "lastActivityAt": datetime.now(),
+            "createdAt": now_iso,
+            "lastActivityAt": now_iso,
             "title": "Mock Conversation",
             "summary": None
         }
@@ -127,17 +145,22 @@ async def get_session(session_id: str) -> Optional[Dict[str, Any]]:
     session_ref = db.collection("chatSessions").document(session_id)
     # Firestore get() is not async
     session_doc = session_ref.get()
-    return doc_to_dict(session_doc)
+    session_data = doc_to_dict(session_doc)
+    # Convert any remaining datetime objects to ISO strings
+    if session_data:
+        session_data = convert_firebase_timestamps(session_data)
+    return session_data
 
 async def get_sessions(user_id: str) -> List[Dict[str, Any]]:
     """Get all chat sessions for a user"""
     if not db:
         # Mock implementation for development
+        now_iso = datetime.now().isoformat()
         return [{
             "id": f"mock-session-{i}",
             "userId": user_id,
-            "createdAt": datetime.now(),
-            "lastActivityAt": datetime.now(),
+            "createdAt": now_iso,
+            "lastActivityAt": now_iso,
             "title": f"Mock Conversation {i}",
             "summary": None
         } for i in range(3)]
@@ -151,7 +174,10 @@ async def get_sessions(user_id: str) -> List[Dict[str, Any]]:
         
         for doc in session_docs:
             session = doc_to_dict(doc)
-            sessions.append(session)
+            if session:
+                # Ensure all timestamps are converted to ISO strings
+                session = convert_firebase_timestamps(session)
+                sessions.append(session)
         
         logger.info(f"Retrieved {len(sessions)} sessions")
         return sessions
@@ -223,7 +249,7 @@ async def create_message(message_data: Dict[str, Any]) -> Dict[str, Any]:
             firebase_data['id'] = str(uuid.uuid4())
         
         # Update session lastActivityAt
-        await update_session(firebase_data["sessionId"], {"lastActivityAt": datetime.now()})
+        await update_session(firebase_data["sessionId"], {"lastActivityAt": datetime.now().isoformat()})
         
         # Create document with the ID we've generated
         doc_ref = db.collection("chatMessages").document(firebase_data['id'])

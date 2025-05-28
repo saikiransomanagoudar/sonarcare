@@ -30,15 +30,15 @@ class ChatMessageResponse(BaseModel):
     sender: str
     sessionId: str
     userId: str
-    timestamp: datetime
+    timestamp: str
     metadata: Optional[dict] = None
     isError: Optional[bool] = None
 
 class ChatSessionResponse(BaseModel):
     id: str
     userId: str
-    createdAt: datetime
-    lastActivityAt: datetime
+    createdAt: str
+    lastActivityAt: str
     title: Optional[str] = None
     summary: Optional[str] = None
 
@@ -80,7 +80,7 @@ async def send_message(request: ChatMessageRequest, user = Depends(get_current_u
         "sender": "user",
         "sessionId": session_id,
         "userId": request.userId,
-        "timestamp": datetime.now(),
+        "timestamp": datetime.now().isoformat(),
     }
     await create_message(user_message)
     
@@ -99,7 +99,7 @@ async def send_message(request: ChatMessageRequest, user = Depends(get_current_u
             "sender": "bot",
             "sessionId": session_id,
             "userId": request.userId,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now().isoformat(),
             "isError": True,
         }
         await create_message(error_message)

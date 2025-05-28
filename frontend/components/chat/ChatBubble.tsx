@@ -65,7 +65,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
         {!isUser && !isStreaming && (
           <button
             onClick={handleCopy}
-            className="cursor-pointer absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-100 transition-all duration-200 group"
+            className="cursor-pointer absolute bottom-2 left-2 p-1.5 rounded-lg hover:bg-gray-100 transition-all duration-200 group"
             title={isCopied ? "Copied!" : "Copy response"}
           >
             {isCopied ? (

@@ -44,60 +44,45 @@ const generateTitleFromResponse = (response: string): string => {
   return title;
 };
 
-// Fixed helper component to handle time display with proper hydration
+// Completely stable time display component
 const TimeDisplay = memo(({ date }: { date: string }) => {
+  const [timeDisplay, setTimeDisplay] = useState<string>('');
   const [mounted, setMounted] = useState(false);
-  
-  // Memoize the formatted time display to prevent recalculation
-  const timeDisplay = useMemo(() => {
-    if (!mounted) return '';
-    
+
+  useEffect(() => {
+    // Calculate the time display once and store it with completely manual formatting
     try {
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) {
-        return 'Recent';
+        setTimeDisplay('Recent');
+        return;
       }
 
-      const now = new Date();
+      // Completely manual formatting to avoid any locale issues
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       
-      // Get date strings for comparison (this removes time component)
-      const messageDate = dateObj.toDateString();
-      const todayDate = now.toDateString();
+      const month = months[dateObj.getMonth()];
+      const day = dateObj.getDate();
+      const hours = dateObj.getHours();
+      const minutes = dateObj.getMinutes();
       
-      // Calculate yesterday's date string
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayDate = yesterday.toDateString();
+      // Manual 12-hour format
+      const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const minutesStr = minutes.toString().padStart(2, '0');
       
-      // Compare date strings directly
-      if (messageDate === todayDate) {
-        // Same day - show time with explicit locale options
-        return dateObj.toLocaleTimeString('en-US', { 
-          hour: 'numeric', 
-          minute: '2-digit',
-          hour12: true
-        });
-      } else if (messageDate === yesterdayDate) {
-        // Yesterday - show "Yesterday"
-        return 'Yesterday';
-      } else {
-        // Older - show date with explicit locale options
-        return dateObj.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric'
-        });
-      }
+      const formattedTime = `${month} ${day}, ${hour12}:${minutesStr} ${ampm}`;
+      setTimeDisplay(formattedTime);
     } catch (error) {
       console.error('Error formatting time:', error);
-      return 'Recent';
+      setTimeDisplay('Recent');
     }
-  }, [date, mounted]);
-
-  useEffect(() => {
+    
     setMounted(true);
-  }, []);
+  }, [date]);
 
-  // Prevent hydration mismatch by not rendering time until mounted
+  // Show placeholder while loading
   if (!mounted) {
     return <span className="text-xs text-gray-500 dark:text-gray-400">•••</span>;
   }

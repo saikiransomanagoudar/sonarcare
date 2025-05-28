@@ -70,7 +70,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           />
           <button
             type="submit"
-            className={`absolute right-3.5 bottom-3.5 p-3 px-2.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+            className={`absolute right-3.5 bottom-4 p-3 px-2.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
               isDisabled
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                 : 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105 shadow-md hover:shadow-lg'

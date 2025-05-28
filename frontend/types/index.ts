@@ -11,10 +11,10 @@ export interface User {
 export interface ChatSession {
   id: string;
   userId: string;
-  createdAt: any; // Firestore Timestamp
-  lastActivityAt: any; // Firestore Timestamp
-  title: string;
+  title?: string;
   summary?: string;
+  createdAt: string; // Changed from any to string since backend now returns ISO strings
+  lastActivityAt: string; // Changed from any to string since backend now returns ISO strings
 }
 
 // Chat Message type
@@ -25,7 +25,7 @@ export interface ChatMessage {
   userId: string;
   sender: 'user' | 'bot';
   text: string;
-  timestamp: any;
+  timestamp: string; // Changed from any to string since backend now returns ISO strings
   metadata?: {
     sonar_model_used?: string;
     [key: string]: any;
