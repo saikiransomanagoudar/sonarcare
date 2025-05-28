@@ -72,7 +72,6 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       }`}
       onClick={handleBackdropClick}
     >
-      {/* Enhanced Backdrop with better blur */}
       <div 
         className={`absolute inset-0 bg-black/60 backdrop-blur-md transition-all duration-300 ${
           isOpen ? 'opacity-100' : 'opacity-0'
@@ -88,7 +87,6 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header with better styling */}
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mr-4">
@@ -108,11 +106,9 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             </svg>
           </button>
         </div>
-        
-        {/* Message with better typography */}
+
         <p className="text-gray-700 mb-8 leading-relaxed text-base">{message}</p>
-        
-        {/* Enhanced action buttons */}
+
         <div className="flex justify-end space-x-4">
           <button
             onClick={handleClose}

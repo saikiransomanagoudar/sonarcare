@@ -13,8 +13,8 @@ export interface ChatSession {
   userId: string;
   title?: string | null;
   summary?: string;
-  createdAt: string; // Changed from any to string since backend now returns ISO strings
-  lastActivityAt: string; // Changed from any to string since backend now returns ISO strings
+  createdAt: string;
+  lastActivityAt: string;
 }
 
 // Chat Message type
@@ -25,7 +25,7 @@ export interface ChatMessage {
   userId: string;
   sender: 'user' | 'bot';
   text: string;
-  timestamp: string; // Changed from any to string since backend now returns ISO strings
+  timestamp: string;
   metadata?: {
     sonar_model_used?: string;
     [key: string]: any;

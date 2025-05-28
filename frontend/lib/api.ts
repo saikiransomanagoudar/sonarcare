@@ -46,17 +46,14 @@ async function fetchAPI<T>(
   }
 }
 
-// Get user's chat sessions
 export const getChatSessions = async (userId: string): Promise<ChatSession[]> => {
   return fetchAPI<ChatSession[]>(`/api/v1/chat/sessions?userId=${userId}`);
 };
 
-// Get messages for a specific chat session
 export const getChatMessages = async (sessionId: string): Promise<ChatMessage[]> => {
   return fetchAPI<ChatMessage[]>(`/api/v1/chat/messages?sessionId=${sessionId}`);
 };
 
-// Send a message to the chatbot
 export const sendMessage = async (request: ChatRequest): Promise<ChatResponse> => {
   return fetchAPI<ChatResponse>('/api/v1/chat/message', {
     method: 'POST',
@@ -64,7 +61,6 @@ export const sendMessage = async (request: ChatRequest): Promise<ChatResponse> =
   });
 };
 
-// Create a new chat session
 export const createChatSession = async (userId: string): Promise<ChatSession> => {
   return fetchAPI<ChatSession>('/api/v1/chat/session', {
     method: 'POST',
@@ -72,7 +68,6 @@ export const createChatSession = async (userId: string): Promise<ChatSession> =>
   });
 };
 
-// Delete a chat session
 export const deleteChatSession = async (sessionId: string): Promise<void> => {
   try {
     await fetchAPI(`/api/v1/chat/session/${sessionId}`, {
@@ -84,7 +79,6 @@ export const deleteChatSession = async (sessionId: string): Promise<void> => {
   }
 };
 
-// Update a chat session title (legacy function - keeping for compatibility)
 export const updateSessionTitle = async (sessionId: string, title: string): Promise<ChatSession> => {
   return fetchAPI<ChatSession>(`/api/v1/chat/session/${sessionId}`, {
     method: 'PATCH',
@@ -92,7 +86,6 @@ export const updateSessionTitle = async (sessionId: string, title: string): Prom
   });
 };
 
-// Update a chat session (more flexible - can update title, summary, etc.)
 export const updateChatSession = async (
   sessionId: string, 
   updates: { title?: string; summary?: string }
@@ -103,7 +96,6 @@ export const updateChatSession = async (
   });
 };
 
-// Get a specific chat session
 export const getChatSession = async (sessionId: string): Promise<ChatSession> => {
   return fetchAPI<ChatSession>(`/api/v1/chat/session/${sessionId}`);
 };

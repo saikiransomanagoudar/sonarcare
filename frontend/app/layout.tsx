@@ -14,7 +14,7 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "SonarCare - Medical AI Assistant",
+  title: "SonarCare - Medical Advice Chatbot",
   description: "Get medical information and advice powered by Perplexity Sonar",
 };
 
