@@ -17,31 +17,113 @@ const SplineScene = dynamic(() => import('../../components/SplineScene'), {
   loading: () => null,
 });
 
-// Helper function to generate title from bot response
-const generateTitleFromResponse = (response: string): string => {
-  if (!response) return 'New Conversation';
+// Enhanced function to generate meaningful titles from conversation content
+const generateTitleFromResponse = (response: string, userMessage?: string): string => {
+  // Always prioritize user message for context if available
+  const textToAnalyze = userMessage || response;
+  if (!textToAnalyze) return 'Chat Session';
   
-  // Remove markdown formatting
-  let cleanResponse = response.replace(/\*\*([^*]+)\*\*/g, '$1'); // Remove bold
-  cleanResponse = cleanResponse.replace(/\*([^*]+)\*/g, '$1'); // Remove italic
-  cleanResponse = cleanResponse.replace(/#{1,6}\s+/g, ''); // Remove headers
-  
-  // Get the first meaningful sentence
-  const sentences = cleanResponse.split(/[.!?]+/).filter(s => s.trim().length > 10);
-  let title = sentences[0] || cleanResponse;
-  
-  // Clean up and truncate
-  title = title.trim();
-  if (title.length > 50) {
-    title = title.substring(0, 47) + '...';
+  // Clean the text - remove markdown formatting and common prefixes
+  let cleanText = textToAnalyze
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold markdown
+    .replace(/\*([^*]+)\*/g, '$1') // Remove italic markdown
+    .replace(/#{1,6}\s+/g, '') // Remove headers
+    .replace(/^(hi|hello|hey|greetings|i'm|i am|can you|what|how|why|when|where|please|help|tell me|explain|about)\s+/i, '') // Remove common prefixes
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim();
+
+  // If we have a user message, prioritize extracting the core question/topic
+  if (userMessage && cleanText) {
+    // Extract the main subject/topic from the user's question
+      const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 5);
+      if (sentences.length > 0) {
+        let title = sentences[0].trim();
+        
+      // Remove question words and focus on the core topic
+      title = title.replace(/^(what|how|why|when|where|which|who|do|does|is|are|can|could|would|will|should)\s+/i, '');
+      title = title.replace(/\?+$/, ''); // Remove question marks
+        
+      // Capitalize and limit length
+      if (title.length > 3) {
+        title = title.charAt(0).toUpperCase() + title.slice(1);
+        return title.length > 50 ? title.substring(0, 47) + '...' : title;
+      }
+    }
+  }
+
+  // Fallback to extracting from bot response
+  if (response) {
+    let botText = response
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/#{1,6}\s+/g, '')
+      .trim();
+
+    // Look for the main topic mentioned in the bot's response
+    // Extract the first substantial sentence that contains meaningful content
+    const sentences = botText.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    
+    for (const sentence of sentences) {
+      const cleanSentence = sentence.trim();
+      
+      // Skip generic introductory sentences
+      if (cleanSentence.match(/^(thank you|thanks|i understand|i can help|based on|regarding|concerning|about)/i)) {
+        continue;
+      }
+      
+      // Skip sentences that are too generic
+      if (cleanSentence.match(/^(this|that|it|here|there|the|a|an)\s/i)) {
+        continue;
+      }
+      
+      // Extract meaningful content
+      let title = cleanSentence
+        .replace(/^(for|regarding|concerning|about|understanding|explanation of|information about)\s+/i, '')
+        .replace(/\s+(is|are|can|could|may|might|should|would|will)\s+.*$/i, '') // Remove trailing explanations
+        .trim();
+      
+      if (title.length > 5 && title.length <= 60) {
+        title = title.charAt(0).toUpperCase() + title.slice(1);
+        return title;
+      }
   }
   
-  // If still too generic or empty, use a fallback
-  if (!title || title.length < 5 || title.toLowerCase().includes('i understand') || title.toLowerCase().includes('i\'m sonarcare')) {
-    title = 'Health Consultation';
+    // If no good sentence found, extract key terms
+    const words = botText
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(word => 
+        word.length > 3 && 
+        !word.match(/^(the|and|for|you|are|not|can|will|this|that|with|have|been|your|they|their|from|what|when|where|would|could|should|might|may|shall|must)$/) &&
+        word.match(/^[a-z]+$/) // Only alphabetic words
+      );
+
+    if (words.length > 0) {
+      // Take first 2-4 meaningful words
+      const titleWords = words.slice(0, Math.min(4, words.length));
+      let title = titleWords.join(' ');
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+      return title.length > 50 ? title.substring(0, 47) + '...' : title;
   }
-  
-  return title;
+  }
+
+  // Final fallback - extract any meaningful words from either text
+  const allText = `${userMessage || ''} ${response || ''}`.toLowerCase();
+  const meaningfulWords = allText
+    .split(/\s+/)
+    .filter(word => 
+      word.length > 4 && 
+      !word.match(/^(hello|thank|please|could|would|should|might|question|answer|help|information|about|regarding|concerning)$/) &&
+      word.match(/^[a-z]+$/)
+    );
+
+  if (meaningfulWords.length > 0) {
+    const title = meaningfulWords.slice(0, 2).join(' ');
+    return title.charAt(0).toUpperCase() + title.slice(1);
+  }
+
+  // Only if absolutely no meaningful content can be extracted
+  return 'Chat Session';
 };
 
 // Completely stable time display component
@@ -122,7 +204,7 @@ const SessionItem = memo(({
             </div>
             <div className="flex-1 min-w-0 pr-8">
               <p className="font-medium text-gray-700 dark:text-gray-200 truncate text-sm">
-                {session.title || 'New Conversation'}
+                {session.title || 'Chat Session'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 <TimeDisplay date={session.lastActivityAt} />
@@ -218,7 +300,7 @@ export default function AppLayout({
         // Add the new session optimistically to the list
         const newSession: ChatSession = {
           id: sessionId,
-          title: title || 'New Conversation',
+          title: title || null,
           lastActivityAt: new Date().toISOString(),
           userId: currentUser.uid,
           createdAt: new Date().toISOString()
@@ -230,14 +312,15 @@ export default function AppLayout({
 
     // Listen for bot responses to update session titles
     const handleBotResponse = async (event: CustomEvent) => {
-      const { sessionId, response, isFirstMessage } = event.detail;
+      const { sessionId, response, isFirstMessage, userMessage } = event.detail;
       
       if (sessionId && response && isFirstMessage && currentUser?.uid) {
         try {
-          // Generate title from the bot response
-          const generatedTitle = generateTitleFromResponse(response);
+          // Generate title from the bot response and user message
+          const generatedTitle = generateTitleFromResponse(response, userMessage);
           
-          // Update the session title in the backend
+          // Update the session title in the backend for any generated title
+          if (generatedTitle) {
           await updateChatSession(sessionId, { title: generatedTitle });
           
           // Update local state efficiently - only update title, keep original lastActivityAt
@@ -246,6 +329,12 @@ export default function AppLayout({
               ? { ...session, title: generatedTitle }
               : session
           ));
+
+            // Dispatch event to notify other components about the title update
+            window.dispatchEvent(new CustomEvent('sessionTitleUpdated', {
+              detail: { sessionId, title: generatedTitle }
+            }));
+          }
         } catch (error) {
           console.error('Error updating session title:', error);
         }
@@ -261,7 +350,7 @@ export default function AppLayout({
       window.removeEventListener('newSessionCreated', handleNewSessionCreated as EventListener);
       window.removeEventListener('botResponseReceived', handleBotResponse as unknown as EventListener);
     };
-  }, [currentUser]); // Removed loadSessions dependency to prevent recreation of event handlers
+  }, [currentUser, sessions]);
 
   // Listen for toggle sidebar events from the chat page
   useEffect(() => {
@@ -298,7 +387,16 @@ export default function AppLayout({
   }, []);
 
   // Handle creating a new chat
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
+    if (!currentUser) {
+      toast.error('Please log in to create a new chat');
+      return;
+    }
+
+    try {
+      // Create a new session with a temporary title
+      const newSession = await createChatSession(currentUser.uid);
+      
     // If we're already on the new chat page, dispatch a reset event
     if (pathname === '/chat') {
       // Dispatch a custom event to reset the new chat page state
@@ -307,8 +405,13 @@ export default function AppLayout({
       // Navigate to the New Chat page
       router.push('/chat');
     }
+      
     // Close the sidebar on mobile
     setSidebarOpen(false);
+    } catch (error) {
+      console.error('Error creating new chat session:', error);
+      toast.error('Failed to create new chat session');
+    }
   };
 
   // Handle deleting a chat session - memoized to prevent re-renders
@@ -581,7 +684,7 @@ export default function AppLayout({
                           ? 'bg-blue-50/80 dark:bg-blue-900/30 border-blue-200/50 dark:border-blue-700/50 shadow-md' 
                           : ''
                       }`}
-                      title={session.title || 'New Conversation'}
+                      title={session.title || 'Chat Session'}
                     >
                       <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />

@@ -83,7 +83,7 @@ export default function NewChatPage() {
       
       // Immediately notify the sidebar about the new session
       window.dispatchEvent(new CustomEvent('newSessionCreated', { 
-        detail: { sessionId: session.id, title: 'New Conversation' } 
+        detail: { sessionId: session.id, title: null } 
       }));
       
       // Set the session ID and show chat interface (no temporary message)
@@ -164,7 +164,7 @@ export default function NewChatPage() {
           <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-gray-800 mb-3">Welcome to SonarCare</h1>
             <p className="text-gray-600 max-w-lg mx-auto">
-              Your AI medical assistant powered by advanced technology. Ask anything about health and medical topics.
+              Ask anything about healthcare.
             </p>
           </div>
           

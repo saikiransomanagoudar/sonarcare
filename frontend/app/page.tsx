@@ -66,11 +66,13 @@ export default function Home() {
                 SonarCare
               </h1>
               <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-cyan-500 dark:from-blue-400 dark:to-cyan-400 mx-auto mb-6 rounded-full" />
-              <p className="text-2xl md:text-3xl font-light text-gray-700 dark:text-gray-200 mb-2">
-                Medical AI Assistant
+              <p className="text-xl md:text-2xl font-light text-gray-700 dark:text-gray-200 mb-2">
+                Medical <span className="relative">
+                  <span className="text-blue-600 dark:text-blue-400 font-bold">A</span>dv<span className="text-blue-600 dark:text-blue-400 font-bold">i</span>ce
+                </span> Chatbot
               </p>
               <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed">
-                Access reliable medical information powered by advanced AI and grounded by Perplexity Sonar technology
+                Access reliable medical information powered by Perplexity Sonar APIs and LangGraph
               </p>
             </div>
 
@@ -80,7 +82,7 @@ export default function Home() {
                 href="/chat"
                 className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 dark:from-blue-500 dark:to-purple-500 dark:hover:from-blue-400 dark:hover:to-purple-400 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl shadow-blue-500/25 dark:shadow-blue-400/25"
               >
-                <span className="relative z-10">Start Consultation</span>
+                <span className="relative z-10">Get Started</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </Link>
             </div>
@@ -89,12 +91,12 @@ export default function Home() {
             <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-12">
               {[
                 {
-                  title: "AI-Powered Analysis",
-                  description: "Advanced medical AI provides comprehensive health insights",
+                  title: "AI-Powered Information",
+                  description: "Provides comprehensive health insights",
                   icon: "🧠"
                 },
                 {
-                  title: "Real-Time Research",
+                  title: "Explore Research",
                   description: "Grounded in latest medical research via Perplexity Sonar",
                   icon: "🔬"
                 },
@@ -129,21 +131,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-      
-      {/* Enhanced Footer */}
-      <footer className="relative z-10 backdrop-blur-sm bg-white/60 dark:bg-gray-800/60 border-t border-gray-200/50 dark:border-gray-700/50">
-        <div className="container mx-auto px-6 md:px-8 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">            
-            {/* <div className="flex flex-col md:flex-row items-center gap-4"> */}
-              <div className="text-center md:text-right">
-                <p className="text-gray-600 dark:text-gray-300 text-sm">
-                  Powered by <span className="text-blue-500 dark:text-blue-400 font-medium">Perplexity Sonar</span> & <span className="text-cyan-500 dark:text-cyan-400 font-medium">LangGraph</span>
-                </p>
-              </div>
-            {/* </div> */}
-          </div>
-        </div>
-      </footer>
 
       <style jsx>{`
         @keyframes blob {

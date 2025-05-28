@@ -26,56 +26,6 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
 
-// Helper function to generate a concise title from the bot's response
-const generateTitleFromResponse = (text: string): string => {
-  // Clean up the text first
-  const cleanText = text
-    .replace(/\*\*/g, '') // Remove markdown bold
-    .replace(/\*/g, '') // Remove markdown italic
-    .replace(/\n+/g, ' ') // Replace newlines with spaces
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
-
-  // If text is short enough, use it as is
-  if (cleanText.length <= 60) return cleanText;
-  
-  // Try to extract the first meaningful sentence
-  const sentences = cleanText.split(/[.!?]+/);
-  const firstSentence = sentences[0]?.trim();
-  
-  if (firstSentence && firstSentence.length <= 70 && firstSentence.length > 10) {
-    return firstSentence;
-  }
-  
-  // Look for key phrases that might indicate the topic
-  const keyPhrases = [
-    /(?:about|regarding|concerning)\s+([^.,!?]+)/i,
-    /(?:symptoms?\s+of|signs?\s+of)\s+([^.,!?]+)/i,
-    /(?:treatment\s+for|treating)\s+([^.,!?]+)/i,
-    /(?:what\s+is|understanding)\s+([^.,!?]+)/i,
-  ];
-  
-  for (const pattern of keyPhrases) {
-    const match = cleanText.match(pattern);
-    if (match && match[1] && match[1].length <= 50) {
-      return match[1].trim();
-    }
-  }
-  
-  // If no good patterns found, take first 50 chars and find a good break point
-  if (cleanText.length > 50) {
-    let cutoff = 50;
-    // Try to break at word boundary
-    const spaceIndex = cleanText.lastIndexOf(' ', cutoff);
-    if (spaceIndex > 30) {
-      cutoff = spaceIndex;
-    }
-    return cleanText.substring(0, cutoff).trim() + '...';
-  }
-  
-  return cleanText;
-};
-
 // Add extended type for messages with sorting timestamps
 interface ChatMessageWithTimestamp extends ChatMessage {
   _sortTimestamp?: number;
@@ -141,16 +91,26 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   useEffect(() => {
     if (initialMessages.length > 0 && !titleGenerated.current) {
       const botMessages = initialMessages.filter(m => m.sender === 'bot');
-      if (botMessages.length > 0) {
+      const userMessages = initialMessages.filter(m => m.sender === 'user');
+      
+      if (botMessages.length > 0 && userMessages.length > 0) {
         const firstBotMessage = botMessages[0];
-        const title = generateTitleFromResponse(firstBotMessage.text);
-        setSessionTitle(title);
+        const firstUserMessage = userMessages[0];
         
-        // Don't update the title on the backend if this is initial load - assume it's already set
+        // Dispatch event for AppLayout to handle title generation
+        window.dispatchEvent(new CustomEvent('botResponseReceived', {
+          detail: {
+            sessionId,
+            response: firstBotMessage.text,
+            userMessage: firstUserMessage.text,
+            isFirstMessage: true
+          }
+        }));
+        
         titleGenerated.current = true;
       }
     }
-  }, [initialMessages]);
+  }, [initialMessages, sessionId]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -220,7 +180,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
           userId: currentUser.uid,
           sender: 'user',
           text: message,
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(), // Convert to string
           isTemporary: true, // Ensure the first message is also marked as temporary
         };
         
@@ -399,16 +359,8 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
             const newMessages = [...prev];
             newMessages[tempMessageIndex] = { ...message, isTemporary: false };
             return newMessages.sort((a, b) => {
-              const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : 
-                          typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() :
-                          typeof a.timestamp === 'object' && a.timestamp?.seconds ? a.timestamp.seconds * 1000 :
-                          typeof a.timestamp === 'number' ? a.timestamp : 0;
-              
-              const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : 
-                          typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() :
-                          typeof b.timestamp === 'object' && b.timestamp?.seconds ? b.timestamp.seconds * 1000 :
-                          typeof b.timestamp === 'number' ? b.timestamp : 0;
-              
+              const timeA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : 0;
+              const timeB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : 0;
               return timeA - timeB;
             });
           } else {
@@ -426,16 +378,8 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         
         // Sort messages by timestamp to maintain proper order
         return newMessages.sort((a, b) => {
-          const timeA = a.timestamp instanceof Date ? a.timestamp.getTime() : 
-                      typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() :
-                      typeof a.timestamp === 'object' && a.timestamp?.seconds ? a.timestamp.seconds * 1000 :
-                      typeof a.timestamp === 'number' ? a.timestamp : 0;
-          
-          const timeB = b.timestamp instanceof Date ? b.timestamp.getTime() : 
-                      typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() :
-                      typeof b.timestamp === 'object' && b.timestamp?.seconds ? b.timestamp.seconds * 1000 :
-                      typeof b.timestamp === 'number' ? b.timestamp : 0;
-          
+          const timeA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : 0;
+          const timeB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : 0;
           return timeA - timeB;
         });
       });
@@ -491,7 +435,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
               userId: currentUser.uid,
               sender: 'bot',
               text: data.text,
-              timestamp: new Date(),
+              timestamp: new Date().toISOString(),
               isStreaming: true
             };
           }
@@ -525,7 +469,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
           userId: data.userId || currentUser.uid,
           sender: data.sender || 'bot',
           text: data.text,
-          timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
+          timestamp: data.timestamp ? data.timestamp : new Date().toISOString(),
           metadata: data.metadata || {},
           isStreaming: false
         };
@@ -548,21 +492,22 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         
         // Generate title from first bot response if we haven't already
         if (!titleGenerated.current && finalMessage.sender === 'bot') {
-          const title = generateTitleFromResponse(finalMessage.text);
+          // Find the most recent user message to use for title generation
+          const allMessages = [...messages, finalMessage];
+          const userMessages = allMessages.filter(m => m.sender === 'user');
+          const lastUserMessage = userMessages[userMessages.length - 1];
           
-          try {
-            updateSessionTitle(sessionId, title)
-              .then(() => {
                 titleGenerated.current = true;
-                console.log('Title updated successfully');
-                window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
-              })
-              .catch(err => {
-                console.error('Failed to update session title:', err);
-              });
-          } catch (error) {
-            console.error('Error updating session title:', error);
-          }
+                
+                // Dispatch event for AppLayout to handle
+                window.dispatchEvent(new CustomEvent('botResponseReceived', {
+                  detail: {
+                    sessionId,
+                    response: finalMessage.text,
+                    userMessage: lastUserMessage?.text,
+                    isFirstMessage: true
+                  }
+                }));
         }
       };
 
@@ -635,21 +580,22 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       setIsLoading(false);
 
       if (!titleGenerated.current && finalMessage.sender === 'bot') {
-        const title = generateTitleFromResponse(finalMessage.text);
+        // Find the most recent user message to use for title generation
+        const allMessages = [...messages, finalMessage];
+        const userMessages = allMessages.filter(m => m.sender === 'user');
+        const lastUserMessage = userMessages[userMessages.length - 1];
         
-        try {
-          updateSessionTitle(sessionId, title)
-            .then(() => {
               titleGenerated.current = true;
-              console.log('Title updated successfully');
-              window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
-            })
-            .catch(err => {
-              console.error('Failed to update session title:', err);
-            });
-        } catch (error) {
-          console.error('Error updating session title:', error);
-        }
+              
+              // Dispatch event for AppLayout to handle
+              window.dispatchEvent(new CustomEvent('botResponseReceived', {
+                detail: {
+                  sessionId,
+                  response: finalMessage.text,
+                  userMessage: lastUserMessage?.text,
+                  isFirstMessage: true
+                }
+              }));
       }
     });
 
@@ -697,10 +643,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
         const filteredMessages = prev.filter(message => {
           // Remove temporary messages that are older than the timeout
           if ((message as any).isTemporary) {
-            const messageTime = message.timestamp instanceof Date ? message.timestamp.getTime() : 
-                              typeof message.timestamp === 'string' ? new Date(message.timestamp).getTime() :
-                              typeof message.timestamp === 'object' && message.timestamp?.seconds ? message.timestamp.seconds * 1000 :
-                              typeof message.timestamp === 'number' ? message.timestamp : 0;
+            const messageTime = typeof message.timestamp === 'string' ? new Date(message.timestamp).getTime() : 0;
             
             const age = now - messageTime;
             if (age > timeoutMs) {
@@ -752,7 +695,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
             userId: currentUser.uid,
             sender: 'user',
             text,
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(), // Convert to string
             isTemporary: true, // Flag to identify temporary messages
           };
           
@@ -786,7 +729,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
             userId: currentUser.uid,
             sender: 'user',
             text,
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(), // Convert to string
             isTemporary: true, // Flag to identify temporary messages
           };
           
@@ -827,7 +770,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
           userId: currentUser.uid,
           sender: 'bot',
           text: 'Sorry, there was an error processing your message. Please try again.',
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(), // Convert to string
           isError: true,
         },
       ]);
