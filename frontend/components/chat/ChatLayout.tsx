@@ -633,8 +633,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       setBotIsTyping(false);
       setCurrentStatus('');
       setIsLoading(false);
-      
-      // Generate title from first bot response if we haven't already
+
       if (!titleGenerated.current && finalMessage.sender === 'bot') {
         const title = generateTitleFromResponse(finalMessage.text);
         
@@ -685,10 +684,6 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
       
       // Remove first message listener
       window.removeEventListener('sendFirstMessage', handleFirstMessage as EventListener);
-      
-      // Don't call removeListeners() or disconnectSocket() here as it might affect other components
-      // The socket should remain connected for potential reuse
-      console.log('ChatLayout cleanup complete for session:', sessionId);
     };
   }, [currentUser, sessionId]);
 
@@ -890,44 +885,12 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ initialMessages = [], sessionId
   return (
     <div 
       className="w-full h-full flex flex-col overflow-hidden relative"
-      style={{ pointerEvents: 'none' }}
+      style={{ pointerEvents: 'auto' }}
     >
-      {/* Transparent header with minimal controls - NO HAMBURGER MENU */}
-      <div 
-        className="flex items-center justify-between p-3 bg-white/20 backdrop-blur-sm rounded-t-lg"
-        style={{ pointerEvents: 'auto' }}
-      >
-        <div className="flex-1" style={{ pointerEvents: 'none' }}></div>
-        
-        <div className="flex items-center space-x-3" style={{ pointerEvents: 'auto' }}>
-          {/* Connection status indicator */}
-          <div className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/30 backdrop-blur-sm shadow-md">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-sm text-gray-700">
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          
-          {/* Delete button */}
-          <button
-            onClick={handleDeleteSession}
-            className="cursor-pointer p-2 rounded-lg bg-white/30 backdrop-blur-sm hover:bg-white/40 hover:text-red-500 transition-all shadow-md"
-            title="Delete conversation"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      
-      {/* Status indicator removed - no typing or analysis messages shown */}
-      
-      {/* Messages container - scrollable with transparent background and allow pointer events to pass through empty areas */}
       <div 
         className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
         style={{ 
-          pointerEvents: 'none'
+          pointerEvents: 'auto'
         }}
       >
         <style jsx>{`

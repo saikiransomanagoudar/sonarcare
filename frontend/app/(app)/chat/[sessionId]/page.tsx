@@ -30,54 +30,37 @@ export default function ChatSessionPage() {
   const [error, setError] = useState('');
   const [firstMessageSent, setFirstMessageSent] = useState(false);
 
+  // Function to normalize timestamps
+  const normalizeTimestamp = (timestamp: any): number => {
+    if (!timestamp) return 0;
+    
+    if (typeof timestamp === 'object' && timestamp.seconds) {
+      return timestamp.seconds * 1000;
+    } else if (typeof timestamp === 'string') {
+      return new Date(timestamp).getTime();
+    } else if (timestamp instanceof Date) {
+      return timestamp.getTime();
+    } else if (typeof timestamp === 'number') {
+      return timestamp;
+    }
+    
+    return 0;
+  };
+
   // Function to ensure alternating user-bot pattern in messages
   const ensureAlternatingPattern = (messages: ChatMessage[]): ChatMessage[] => {
     console.log("Original unsorted messages:", messages);
     
     if (messages.length <= 1) return messages;
     
-    // First try by timestamps
+    // First try by timestamps with improved normalization
     const timeStampSorted = [...messages].sort((a, b) => {
-      let timeA = 0;
-      let timeB = 0;
-      
-      // Extract timestamp numbers
-      if (a.timestamp) {
-        if (typeof a.timestamp === 'object' && a.timestamp.seconds) {
-          timeA = a.timestamp.seconds * 1000;
-        } else if (typeof a.timestamp === 'string') {
-          timeA = new Date(a.timestamp).getTime();
-        } else if (a.timestamp instanceof Date) {
-          timeA = a.timestamp.getTime();
-        } else if (typeof a.timestamp === 'number') {
-          timeA = a.timestamp;
-        }
-      }
-      
-      if (b.timestamp) {
-        if (typeof b.timestamp === 'object' && b.timestamp.seconds) {
-          timeB = b.timestamp.seconds * 1000;
-        } else if (typeof b.timestamp === 'string') {
-          timeB = new Date(b.timestamp).getTime();
-        } else if (b.timestamp instanceof Date) {
-          timeB = b.timestamp.getTime();
-        } else if (typeof b.timestamp === 'number') {
-          timeB = b.timestamp;
-        }
-      }
-      
+      const timeA = normalizeTimestamp(a.timestamp);
+      const timeB = normalizeTimestamp(b.timestamp);
       return timeA - timeB;
     }).map(msg => ({
       ...msg,
-      _sortTimestamp: typeof msg.timestamp === 'object' && msg.timestamp?.seconds 
-        ? msg.timestamp.seconds * 1000 
-        : msg.timestamp instanceof Date 
-          ? msg.timestamp.getTime() 
-          : typeof msg.timestamp === 'string'
-            ? new Date(msg.timestamp).getTime()
-            : typeof msg.timestamp === 'number'
-              ? msg.timestamp
-              : 0
+      _sortTimestamp: normalizeTimestamp(msg.timestamp)
     })) as ChatMessageWithTimestamp[];
     
     console.log("Timestamp sorted:", timeStampSorted);
@@ -228,6 +211,30 @@ export default function ChatSessionPage() {
       return () => clearTimeout(timer);
     }
   }, [firstMessage, firstMessageSent, loading, currentUser]);
+
+  // Listen for session title updates to refresh the session list
+  useEffect(() => {
+    const handleSessionUpdate = () => {
+      // Dispatch event to refresh session list in AppLayout
+      window.dispatchEvent(new CustomEvent('sessionTitleUpdated'));
+    };
+
+    // Listen for bot responses in this session
+    const handleLocalBotResponse = (event: CustomEvent) => {
+      const { sessionId: eventSessionId } = event.detail;
+      
+      // Only handle events for this session
+      if (eventSessionId === sessionId) {
+        handleSessionUpdate();
+      }
+    };
+
+    window.addEventListener('botResponseReceived', handleLocalBotResponse as EventListener);
+    
+    return () => {
+      window.removeEventListener('botResponseReceived', handleLocalBotResponse as EventListener);
+    };
+  }, [sessionId]);
 
   if (loading) {
     return (

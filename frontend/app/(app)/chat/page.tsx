@@ -197,7 +197,7 @@ export default function NewChatPage() {
             
             <div className="mt-4 bg-yellow-50 rounded-lg p-3 border-l-4 border-yellow-400">
               <p className="text-yellow-800 text-xs">
-                <strong>Medical Disclaimer:</strong> Information provided is for educational purposes only and is not a substitute for professional medical advice.
+                <strong>Medical Disclaimer:</strong> Information provided is for educational purposes only and is not a substitute for professional medical advice. Always consult a qualified healthcare provider with any questions you may have regarding a medical condition or treatment.
               </p>
             </div>
           </div>

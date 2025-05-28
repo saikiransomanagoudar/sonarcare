@@ -35,7 +35,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
   };
 
   return (
-    <header className="bg-white bg-opacity-90 backdrop-blur-md shadow-sm relative z-20 border-b border-gray-200/50">
+    <header className="bg-gradient-to-br from-blue-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-blue-900 backdrop-blur-md shadow-sm relative z-20 border-b border-gray-200/50 dark:border-gray-700/50 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
@@ -43,7 +43,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
             {currentUser && pathname.startsWith('/chat') && (
               <button
                 onClick={onMenuClick}
-                className="cursor-pointer md:hidden mr-3 p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 active:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors duration-150"
+                className="cursor-pointer md:hidden mr-3 p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors duration-150"
                 aria-label="Toggle sidebar"
               >
                 <svg 
@@ -64,7 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
             
             <Link href="/" className="flex-shrink-0 flex items-center">
               <svg 
-                className="h-8 w-8 text-blue-500" 
+                className="h-8 w-8 text-blue-500 dark:text-blue-400" 
                 viewBox="0 0 24 24" 
                 fill="none" 
                 stroke="currentColor" 
@@ -77,14 +77,16 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                 <line x1="9" y1="9" x2="9.01" y2="9" />
                 <line x1="15" y1="9" x2="15.01" y2="9" />
               </svg>
-              <span className="ml-2 text-xl font-bold text-gray-800">SonarCare</span>
+              <span className="ml-2 text-xl font-bold text-gray-800 dark:text-white">SonarCare</span>
             </Link>
             <div className="hidden md:ml-6 md:flex md:space-x-8">
               {currentUser && (
                 <Link 
                   href="/chat" 
                   className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname.startsWith('/chat') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    pathname.startsWith('/chat') 
+                      ? 'border-blue-500 text-gray-900 dark:text-white' 
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-700 dark:hover:text-gray-200'
                   }`}
                 >
                   Chat
@@ -103,17 +105,17 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                       alt={currentUser.displayName || 'User'}
                     />
                   ) : (
-                    <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                    <div className="h-8 w-8 rounded-full bg-blue-500 dark:bg-blue-600 flex items-center justify-center text-white">
                       {(currentUser.displayName || currentUser.email || 'U').charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <span className="ml-2 text-sm font-medium text-gray-700 hidden md:block">
+                  <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-200 hidden md:block">
                     {currentUser.displayName || currentUser.email?.split('@')[0]}
                   </span>
                 </div>
                 <button
                   onClick={handleSignOut}
-                  className="ml-2 px-3 py-1.5 cursor-pointer border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  className="ml-2 px-3 py-1.5 cursor-pointer border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white/80 dark:bg-gray-800/80 hover:bg-gray-50 dark:hover:bg-gray-700/80 backdrop-blur-sm transition-colors duration-150"
                 >
                   Sign Out
                 </button>
@@ -122,13 +124,13 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
               <div className="space-x-2">
                 <Link 
                   href="/login"
-                  className="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white/80 dark:bg-gray-800/80 hover:bg-gray-50 dark:hover:bg-gray-700/80 backdrop-blur-sm transition-colors duration-150"
                 >
                   Sign In
                 </Link>
                 <Link 
                   href="/signup"
-                  className="px-3 py-1.5 rounded-md text-sm font-medium text-white bg-blue-500 hover:bg-blue-600"
+                  className="px-3 py-1.5 rounded-md text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors duration-150"
                 >
                   Sign Up
                 </Link>

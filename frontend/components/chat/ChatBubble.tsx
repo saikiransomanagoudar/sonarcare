@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ChatMessage } from '../../types';
 
@@ -9,12 +9,24 @@ interface ChatBubbleProps {
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
   const isUser = message.sender === 'user';
   const isStreaming = message.isStreaming === true;
+  const [isCopied, setIsCopied] = useState(false);
   
   // Format timestamp
   const formattedTime = message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit'
   }) : '';
+
+  // Copy function
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.text);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000); // Reset after 2 seconds
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
@@ -49,6 +61,25 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
             } text-gray-800 rounded-2xl rounded-tl-sm`
       } px-4 py-3 relative`}>
         
+        {/* Copy button for bot messages (not streaming) */}
+        {!isUser && !isStreaming && (
+          <button
+            onClick={handleCopy}
+            className="cursor-pointer absolute top-2 right-2 p-1.5 rounded-lg hover:bg-gray-100 transition-all duration-200 group"
+            title={isCopied ? "Copied!" : "Copy response"}
+          >
+            {isCopied ? (
+              <svg className="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+            ) : (
+              <svg className="h-4 w-4 text-gray-700 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+              </svg>
+            )}
+          </button>
+        )}
+        
         {/* Streaming glow effect */}
         {isStreaming && !isUser && (
           <div className="absolute inset-0 rounded-2xl rounded-tl-sm bg-gradient-to-r from-blue-400/10 to-purple-400/10 animate-pulse -z-10"></div>
@@ -74,18 +105,28 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {
                 <span>{message.text}</span>
               </div>
             ) : (
-              <div className={`prose prose-sm prose-blue max-w-none text-gray-800 ${isStreaming ? 'streaming-text' : ''}`}>
+              <div className={`max-w-none text-gray-800 text-sm ${isStreaming ? 'streaming-text' : ''}`}>
                 <ReactMarkdown 
                   components={{
-                    p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-                    ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-                    ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
-                    li: ({ children }) => <li className="text-sm">{children}</li>,
-                    strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                    em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
-                    h1: ({ children }) => <h1 className="text-lg font-bold mb-2 text-gray-900">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-base font-semibold mb-2 text-gray-900">{children}</h2>,
+                    p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed text-sm">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1 text-sm">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1 text-sm">{children}</ol>,
+                    li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
+                    strong: ({ children }) => <strong className="font-semibold text-gray-900 text-sm">{children}</strong>,
+                    em: ({ children }) => <em className="italic text-gray-700 text-sm">{children}</em>,
+                    h1: ({ children }) => <h1 className="text-base font-bold mb-2 text-gray-900">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-sm font-semibold mb-2 text-gray-900">{children}</h2>,
                     h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 text-gray-900">{children}</h3>,
+                    a: ({ href, children }) => (
+                      <a 
+                        href={href} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-colors duration-200 font-medium"
+                      >
+                        {children}
+                      </a>
+                    ),
                   }}
                 >
                   {message.text}
