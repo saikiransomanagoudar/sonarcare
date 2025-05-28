@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class ActionOperatorAgent(BaseActionAgent):
     """
     Optimized supervisor agent that detects user intent and routes to the appropriate specialized agent.
-    Uses caching and simplified classification for better performance.
+    Uses intelligent LLM-based classification for better accuracy.
     """
     
     INTENTS = [
@@ -24,18 +24,9 @@ class ActionOperatorAgent(BaseActionAgent):
         "department_inquiry",
         "deep_medical_inquiry",
         "unbiased_factual_request",
+        "comprehensive_health_assessment",
         "unknown"
     ]
-    
-    # Simple keyword-based intent detection for common patterns
-    INTENT_KEYWORDS = {
-        "greeting": ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings"],
-        "symptom_inquiry": ["symptoms", "feeling", "pain", "ache", "hurt", "sick", "unwell", "fever", "headache", "nausea"],
-        "treatment_advice": ["treatment", "medicine", "medication", "cure", "therapy", "remedy", "how to treat"],
-        "hospital_search": ["hospital", "clinic", "medical center", "doctor near", "find doctor", "where can i"],
-        "department_inquiry": ["which doctor", "what specialist", "department", "who should i see", "what kind of doctor"],
-        "deep_medical_inquiry": ["research", "breakthrough", "study", "studies", "clinical trial", "latest", "recent", "new research", "scientific", "advancement", "discovery", "findings", "evidence", "investigation", "cutting-edge", "innovation", "development", "progress", "emerging", "novel", "current research", "medical research", "breakthroughs"]
-    }
     
     def __init__(self):
         """Initialize the operator agent with caching."""
@@ -55,35 +46,59 @@ class ActionOperatorAgent(BaseActionAgent):
         normalized = query.lower().strip()
         return hashlib.md5(normalized.encode()).hexdigest()
     
-    def _detect_intent_by_keywords(self, query: str) -> Optional[str]:
-        """Fast keyword-based intent detection for common patterns."""
-        query_lower = query.lower()
-        
-        # Check for greeting patterns
-        if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["greeting"]):
-            return "greeting"
-        
-        # Check for deep medical inquiry patterns (should be checked early)
-        if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["deep_medical_inquiry"]):
-            return "deep_medical_inquiry"
-        
-        # Check for symptom inquiry patterns
-        if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["symptom_inquiry"]):
-            return "symptom_inquiry"
-        
-        # Check for treatment advice patterns
-        if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["treatment_advice"]):
-            return "treatment_advice"
-        
-        # Check for hospital search patterns
-        if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["hospital_search"]):
-            return "hospital_search"
-        
-        # Check for department inquiry patterns
-        if any(keyword in query_lower for keyword in self.INTENT_KEYWORDS["department_inquiry"]):
-            return "department_inquiry"
-        
-        return None
+    async def _detect_intent_with_sonar(self, query: str) -> str:
+        """Use Sonar model to dynamically detect intent from the query."""
+        prompt = f"""Analyze this medical/healthcare query and classify it into ONE of these categories:
+
+**Intent Categories:**
+1. **greeting** - Basic greetings, introductions, casual conversation starters
+2. **symptom_inquiry** - Questions about symptoms, feeling sick, pain, discomfort, health issues
+3. **treatment_advice** - Questions about treating conditions, medications, therapies, remedies
+4. **hospital_search** - Looking for hospitals, clinics, medical facilities, doctors nearby
+5. **department_inquiry** - Which medical specialist or department to consult
+6. **deep_medical_inquiry** - Research questions, breakthroughs, studies, latest medical developments, clinical trials
+7. **unbiased_factual_request** - Requests for balanced, factual information on controversial medical topics
+8. **comprehensive_health_assessment** - Requests for complete health evaluations, thorough assessments, full medical analysis
+9. **unknown** - Does not fit any medical/healthcare category
+
+**Query to classify:** "{query}"
+
+**Instructions:**
+- Analyze the user's primary intent and goal
+- Consider the context and what the user is actually asking for
+- If multiple intents seem possible, choose the most specific and relevant one
+- Focus on what action or information the user wants
+
+**Response:** Return ONLY the category name without any formatting (e.g., comprehensive_health_assessment)"""
+
+        try:
+            response, _ = await self._generate_response(prompt, model=self.sonar)
+            
+            # Clean up the response - remove markdown, extra spaces, etc.
+            intent = response.strip().lower()
+            
+            # Remove common markdown formatting
+            intent = intent.replace('**', '').replace('*', '').replace('`', '')
+            
+            # Remove quotes and other punctuation
+            intent = intent.replace('"', '').replace("'", '').replace('.', '').replace(',', '')
+            
+            # Extract just the intent name if it's in a sentence
+            for valid_intent in self.INTENTS:
+                if valid_intent in intent:
+                    intent = valid_intent
+                    break
+            
+            # Validate the cleaned response
+            if intent in self.INTENTS:
+                return intent
+            else:
+                logger.warning(f"Invalid intent from Sonar: '{response}' (cleaned: '{intent}'). Defaulting to 'symptom_inquiry'.")
+                return "symptom_inquiry"
+                
+        except Exception as e:
+            logger.error(f"Error in Sonar intent detection: {str(e)}")
+            return "symptom_inquiry"  # Safe fallback
     
     def _cleanup_cache(self):
         """Remove old entries from cache."""
@@ -106,7 +121,7 @@ class ActionOperatorAgent(BaseActionAgent):
     
     async def process(self, query: str, message_history: List[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         """
-        Detect the intent of the user query with optimization.
+        Detect the intent of the user query using Sonar model.
         
         Args:
             query: The user's query
@@ -130,59 +145,11 @@ class ActionOperatorAgent(BaseActionAgent):
                 }
                 return intent, metadata
         
-        # Try fast keyword-based detection first
-        intent = self._detect_intent_by_keywords(query)
-        
-        if intent:
-            logger.info(f"Intent detected by keywords: '{intent}' for query: '{query[:50]}...'")
-            # Cache the result
-            self._intent_cache[cache_key] = (intent, datetime.now())
-            processing_time = (datetime.now() - start_time).total_seconds() * 1000
-            
-            metadata = {
-                "intent": intent,
-                "method": "keyword_detection",
-                "processing_time_ms": processing_time
-            }
-            return intent, metadata
-        
-        # Fall back to LLM-based detection for complex queries
-        logger.info(f"Using LLM for intent detection: '{query[:50]}...'")
-        
-        # Simplified prompt for faster processing
-        prompt = f"""Classify this medical query into ONE category:
-        
-Categories: 
-- greeting: Basic greetings and introductions
-- symptom_inquiry: Questions about symptoms, feeling sick, pain, discomfort
-- treatment_advice: Questions about treating specific conditions or symptoms
-- hospital_search: Looking for hospitals, clinics, doctors, medical facilities
-- department_inquiry: Which medical specialist or department to see
-- deep_medical_inquiry: Research, breakthroughs, studies, latest developments, scientific findings, clinical trials, cutting-edge treatments, medical innovations, recent advances
-- unbiased_factual_request: Requests for balanced, factual information on controversial topics
-- unknown: Does not fit any category
-
-Query: "{query}"
-
-Examples:
-"cancer research breakthroughs" → deep_medical_inquiry
-"latest treatment for diabetes" → deep_medical_inquiry
-"recent studies on heart disease" → deep_medical_inquiry
-"I have a headache" → symptom_inquiry
-"find hospitals near me" → hospital_search
-
-Return only the category name."""
+        # Use Sonar model for intent detection
+        logger.info(f"Using Sonar for intent detection: '{query[:50]}...'")
         
         try:
-            # Generate the intent classification
-            intent_response, llm_metadata = await self._generate_response(prompt)
-            
-            # Clean up and validate the response
-            intent = intent_response.strip().lower()
-            
-            if intent not in self.INTENTS:
-                logger.warning(f"Invalid intent detected: '{intent_response}'. Defaulting to 'symptom_inquiry'.")
-                intent = "symptom_inquiry"
+            intent = await self._detect_intent_with_sonar(query)
             
             # Cache the result
             self._intent_cache[cache_key] = (intent, datetime.now())
@@ -194,13 +161,10 @@ Return only the category name."""
             processing_time = (datetime.now() - start_time).total_seconds() * 1000
             logger.info(f"Intent classification completed in {processing_time:.2f}ms: '{intent}'")
             
-            # Add intent to metadata
             metadata = {
                 "intent": intent,
-                "method": "llm_detection",
-                "processing_time_ms": processing_time,
-                "original_intent_response": intent_response.strip(),
-                **llm_metadata
+                "method": "sonar_detection",
+                "processing_time_ms": processing_time
             }
             
             return intent, metadata
